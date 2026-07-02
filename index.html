@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Nebula Maze 星雲迷宮</title>
+<meta name="description" content="傾斜手機,引導光球穿越星雲能量迷宮。無限關卡、收集星星、躲避黑洞。">
+<meta name="theme-color" content="#05060f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Nebula Maze">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-left">
+    <div class="hud-chip" id="hud-level">LV 1</div>
+    <div class="hud-chip" id="hud-stars">★ 0/3</div>
+  </div>
+  <div class="hud-right">
+    <div class="hud-chip" id="hud-time">00:00</div>
+    <button class="hud-btn" id="btn-calibrate" title="校準傾斜">◎</button>
+    <button class="hud-btn" id="btn-settings" title="設定">⚙</button>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+
+<!-- 開始畫面 -->
+<div id="screen-start" class="overlay">
+  <div class="panel">
+    <div class="logo-orb"></div>
+    <h1>NEBULA&nbsp;MAZE</h1>
+    <p class="subtitle">星雲迷宮</p>
+    <p class="desc">傾斜你的手機,引導光球穿越能量迷宮。<br>收集星星、躲避黑洞、抵達傳送門。</p>
+    <div class="best" id="best-line"></div>
+    <button class="btn-primary" id="btn-start">開始遊戲</button>
+    <button class="btn-ghost" id="btn-settings-start">設定</button>
+    <p class="hint" id="control-hint">手機:傾斜操作 &nbsp;|&nbsp; 電腦:方向鍵 / 拖曳</p>
+  </div>
+</div>
+
+<!-- 過關畫面 -->
+<div id="screen-clear" class="overlay hidden">
+  <div class="panel">
+    <h2>抵達傳送門!</h2>
+    <div class="clear-stars" id="clear-stars">★★★</div>
+    <div class="clear-grid">
+      <div><span class="label">時間</span><span id="clear-time">00:00</span></div>
+      <div><span class="label">本關得分</span><span id="clear-score">0</span></div>
+      <div><span class="label">總分</span><span id="clear-total">0</span></div>
+    </div>
+    <button class="btn-primary" id="btn-next">下一關 ➜</button>
+    <button class="btn-ghost" id="btn-replay">重玩本關</button>
+  </div>
+</div>
+
+<!-- 設定畫面 -->
+<div id="screen-settings" class="overlay hidden">
+  <div class="panel">
+    <h2>設定</h2>
+    <label class="setting-row">
+      <span>傾斜靈敏度</span>
+      <input type="range" id="set-sensitivity" min="0.5" max="2" step="0.1" value="1">
+    </label>
+    <label class="setting-row toggle">
+      <span>音效</span>
+      <input type="checkbox" id="set-sound" checked>
+    </label>
+    <label class="setting-row toggle">
+      <span>震動回饋</span>
+      <input type="checkbox" id="set-vibrate" checked>
+    </label>
+    <button class="btn-ghost" id="btn-reset-progress">重置進度</button>
+    <button class="btn-primary" id="btn-close-settings">返回</button>
+  </div>
+</div>
+
+<script src="js/game.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+}
+</script>
+</body>
+</html>
