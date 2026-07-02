@@ -1,5 +1,5 @@
 /* Nebula Maze — Service Worker(離線快取) */
-const CACHE = 'nebula-maze-v2';
+const CACHE = 'nebula-maze-v3';
 const ASSETS = [
   './',
   './index.html',

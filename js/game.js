@@ -55,6 +55,7 @@ const THEMES = {
     desc: '傾斜你的手機,讓百香果滾過果肉迷宮。<br>收集花朵、避開蟲蛀洞、滾進果汁漩渦。',
     startToast: '傾斜手機,讓百香果滾進果汁漩渦!',
     fallToast: '掉進蟲蛀洞!從起點重來',
+    clearTitle: '恭喜過關!',
     phys: { accel: 2300, friction: 2.6, restitution: 0.12, maxSpeed: 1000, wobble: 130, squash: true },
   },
   // 星雲能量球 — 低摩擦、高彈性
@@ -65,6 +66,7 @@ const THEMES = {
     desc: '傾斜你的手機,引導光球穿越能量迷宮。<br>收集星星、躲避黑洞、抵達傳送門。',
     startToast: '傾斜手機,引導光球到傳送門!',
     fallToast: '被黑洞吞噬!從起點重來',
+    clearTitle: '抵達傳送門!',
     phys: { accel: 2600, friction: 1.7, restitution: 0.38, maxSpeed: 1400, wobble: 0, squash: false },
   },
 };
@@ -669,6 +671,7 @@ function levelClear() {
   store.set('bestLevel', game.bestLevel);
   store.set('bestScore', game.bestScore);
 
+  document.getElementById('clear-title').textContent = theme().clearTitle;
   const starsEl = document.getElementById('clear-stars');
   starsEl.innerHTML = [0, 1, 2].map(i =>
     `<span class="${i < game.starsGot ? '' : 'off'}">${theme().icon}</span>`).join('');

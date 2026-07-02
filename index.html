@@ -49,7 +49,100 @@
 <!-- 過關畫面 -->
 <div id="screen-clear" class="overlay hidden">
   <div class="panel">
-    <h2>抵達傳送門!</h2>
+    <!-- 百香果吉祥物:剖半百香果吃刨冰乘涼(僅百香果主題顯示) -->
+    <div id="clear-mascot" aria-hidden="true">
+      <svg viewBox="0 0 220 175" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="m-pulp" cx="42%" cy="38%" r="75%">
+            <stop offset="0%" stop-color="#ffd95e"/>
+            <stop offset="60%" stop-color="#f7b93a"/>
+            <stop offset="100%" stop-color="#e79c22"/>
+          </radialGradient>
+        </defs>
+        <!-- 地面影子 -->
+        <ellipse cx="112" cy="163" rx="66" ry="8" fill="rgba(0,0,0,0.3)"/>
+        <g class="m-bob">
+          <!-- 腳 -->
+          <ellipse cx="92" cy="150" rx="10" ry="6" fill="#4a1631"/>
+          <ellipse cx="132" cy="150" rx="10" ry="6" fill="#4a1631"/>
+          <!-- 身體:剖半百香果(果皮 → 白色內皮 → 果肉) -->
+          <circle cx="112" cy="94" r="55" fill="#5a1e3e"/>
+          <circle cx="112" cy="94" r="48" fill="#f6e8d8"/>
+          <circle cx="112" cy="94" r="42" fill="url(#m-pulp)"/>
+          <!-- 果肉裡的黑籽(繞一圈) -->
+          <g fill="#2e1608">
+            <ellipse cx="112" cy="60" rx="4.5" ry="3.5"/>
+            <ellipse cx="138" cy="70" rx="4.5" ry="3.5" transform="rotate(40 138 70)"/>
+            <ellipse cx="146" cy="96" rx="4.5" ry="3.5" transform="rotate(80 146 96)"/>
+            <ellipse cx="136" cy="122" rx="4.5" ry="3.5" transform="rotate(130 136 122)"/>
+            <ellipse cx="88" cy="122" rx="4.5" ry="3.5" transform="rotate(50 88 122)"/>
+            <ellipse cx="78" cy="96" rx="4.5" ry="3.5" transform="rotate(100 78 96)"/>
+            <ellipse cx="86" cy="70" rx="4.5" ry="3.5" transform="rotate(140 86 70)"/>
+          </g>
+          <g fill="rgba(255,245,215,0.75)">
+            <circle cx="110.6" cy="59" r="1.1"/>
+            <circle cx="136.6" cy="69" r="1.1"/>
+            <circle cx="144.6" cy="95" r="1.1"/>
+            <circle cx="86.6" cy="121" r="1.1"/>
+            <circle cx="76.6" cy="95" r="1.1"/>
+          </g>
+          <!-- 頭頂嫩芽 -->
+          <path d="M112 40 Q111 30 106 26" stroke="#5d8a34" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <ellipse cx="100" cy="24" rx="8" ry="4.5" fill="#6fae3d" transform="rotate(-28 100 24)"/>
+          <ellipse cx="115" cy="22" rx="7" ry="4" fill="#8cc455" transform="rotate(18 115 22)"/>
+          <!-- 臉 -->
+          <g class="m-eye">
+            <circle cx="97" cy="88" r="5.2" fill="#241008"/>
+            <circle cx="99" cy="86" r="1.8" fill="#fff"/>
+          </g>
+          <g class="m-eye">
+            <circle cx="127" cy="88" r="5.2" fill="#241008"/>
+            <circle cx="129" cy="86" r="1.8" fill="#fff"/>
+          </g>
+          <ellipse cx="84" cy="101" rx="6.5" ry="3.6" fill="rgba(255,110,110,0.5)"/>
+          <ellipse cx="140" cy="101" rx="6.5" ry="3.6" fill="rgba(255,110,110,0.5)"/>
+          <!-- 吃冰的嘴(開口) -->
+          <ellipse cx="112" cy="106" rx="7.5" ry="5.5" fill="#7a2430"/>
+          <ellipse cx="112" cy="108.5" rx="4.5" ry="2.4" fill="#e86a6a"/>
+          <!-- 左手:湯匙(往嘴巴來回) -->
+          <g class="m-arm-spoon">
+            <path d="M60 102 Q62 118 72 127" stroke="#5a1e3e" stroke-width="9" fill="none" stroke-linecap="round"/>
+            <circle cx="73" cy="128" r="6.5" fill="#5a1e3e"/>
+            <line x1="73" y1="128" x2="65" y2="143" stroke="#b9c2cf" stroke-width="3.5" stroke-linecap="round"/>
+            <ellipse cx="63.5" cy="146" rx="5.5" ry="4" fill="#cfd6e0"/>
+            <circle cx="63.5" cy="144" r="3.2" fill="#ffffff"/>
+          </g>
+          <!-- 右手:小圓扇(乘涼) -->
+          <g class="m-arm-fan">
+            <path d="M164 102 Q166 114 170 120" stroke="#5a1e3e" stroke-width="9" fill="none" stroke-linecap="round"/>
+            <circle cx="170" cy="121" r="6.5" fill="#5a1e3e"/>
+            <line x1="170" y1="121" x2="181" y2="107" stroke="#c98a3a" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="186" cy="100" r="13" fill="#ffedc2" stroke="#e88f2a" stroke-width="2.5"/>
+            <path d="M186 88 V112 M175.6 94 L196.4 106 M175.6 106 L196.4 94" stroke="#e8b46a" stroke-width="1.4"/>
+          </g>
+        </g>
+        <!-- 刨冰(玻璃碗 + 冰山 + 百香果醬) -->
+        <g class="m-ice">
+          <circle cx="42" cy="128" r="9" fill="#fdfdfd"/>
+          <circle cx="58" cy="124" r="11" fill="#ffffff"/>
+          <circle cx="50" cy="116" r="9" fill="#fdfdfd"/>
+          <path d="M40 124 Q50 108 60 124 Q56 130 50 129 Q44 130 40 124 Z" fill="#ffab2e" opacity="0.9"/>
+          <ellipse cx="47" cy="119" rx="2" ry="1.4" fill="#2e1608"/>
+          <ellipse cx="55" cy="121" rx="2" ry="1.4" fill="#2e1608"/>
+          <path d="M28 133 L74 133 L67 160 L35 160 Z" fill="#8fd6f2" opacity="0.92"/>
+          <ellipse cx="51" cy="133" rx="23" ry="5" fill="#c4ecfb"/>
+          <path d="M33 152 L69 152 L67 160 L35 160 Z" fill="#6bbfe2"/>
+          <!-- 涼氣 -->
+          <path class="m-cool" d="M30 108 q4 -6 0 -12 M42 102 q4 -6 0 -12" stroke="#bfe9ff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        </g>
+        <!-- 微風線(乘涼) -->
+        <g class="m-breeze" stroke="#ffd9a0" stroke-width="2" fill="none" stroke-linecap="round">
+          <path d="M196 128 q10 3 18 -2"/>
+          <path d="M192 140 q12 4 22 -1"/>
+        </g>
+      </svg>
+    </div>
+    <h2 id="clear-title">抵達傳送門!</h2>
     <div class="clear-stars" id="clear-stars">★★★</div>
     <div class="clear-grid">
       <div><span class="label">時間</span><span id="clear-time">00:00</span></div>
