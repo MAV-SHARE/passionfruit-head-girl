@@ -10,6 +10,11 @@ const ctx = canvas.getContext('2d');
 
 /* ---------- 工具 ---------- */
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// 視窗尺寸(視窗被最小化/尚未布局時可能為 0,給予安全預設)
+const viewSize = () => ({
+  w: window.innerWidth || 360,
+  h: window.innerHeight || 640,
+});
 const lerp = (a, b, t) => a + (b - a) * t;
 const dist2 = (x1, y1, x2, y2) => (x1 - x2) ** 2 + (y1 - y2) ** 2;
 
@@ -37,7 +42,43 @@ const settings = {
   sensitivity: store.get('sensitivity', 1),
   sound: store.get('sound', true),
   vibrate: store.get('vibrate', true),
+  theme: store.get('theme', 'passion'),
 };
+
+/* ---------- 主題(視覺 + 物理碰撞規則) ---------- */
+const THEMES = {
+  // 預設:百香果 — 真實水果的滾動手感:幾乎不彈、阻力大、果形不正會搖晃、撞牆會擠壓
+  passion: {
+    icon: '✿',
+    h1: 'PASSION MAZE',
+    sub: '百香果迷宮',
+    desc: '傾斜你的手機,讓百香果滾過果肉迷宮。<br>收集花朵、避開蟲蛀洞、滾進果汁漩渦。',
+    startToast: '傾斜手機,讓百香果滾進果汁漩渦!',
+    fallToast: '掉進蟲蛀洞!從起點重來',
+    phys: { accel: 2300, friction: 2.6, restitution: 0.12, maxSpeed: 1000, wobble: 130, squash: true },
+  },
+  // 星雲能量球 — 低摩擦、高彈性
+  nebula: {
+    icon: '★',
+    h1: 'NEBULA MAZE',
+    sub: '星雲迷宮',
+    desc: '傾斜你的手機,引導光球穿越能量迷宮。<br>收集星星、躲避黑洞、抵達傳送門。',
+    startToast: '傾斜手機,引導光球到傳送門!',
+    fallToast: '被黑洞吞噬!從起點重來',
+    phys: { accel: 2600, friction: 1.7, restitution: 0.38, maxSpeed: 1400, wobble: 0, squash: false },
+  },
+};
+const theme = () => THEMES[settings.theme] || THEMES.passion;
+function applyThemeClass() {
+  const th = theme();
+  document.body.classList.toggle('theme-passion', settings.theme === 'passion');
+  const h1 = document.getElementById('title-main');
+  if (h1) {
+    h1.textContent = th.h1.replace(' ', ' ');
+    document.getElementById('title-sub').textContent = th.sub;
+    document.getElementById('title-desc').innerHTML = th.desc;
+  }
+}
 
 /* ---------- 音效(WebAudio 即時合成,零素材) ---------- */
 const sfx = (() => {
@@ -66,7 +107,10 @@ const sfx = (() => {
   }
   return {
     unlock: ensure,
-    thud(strength) { tone(90 + strength * 60, 0.08, 'triangle', clamp(strength * 0.4, 0.03, 0.3), 0.5); },
+    thud(strength) {
+      if (settings.theme === 'passion') tone(55 + strength * 35, 0.12, 'sine', clamp(strength * 0.5, 0.04, 0.35), 0.4);
+      else tone(90 + strength * 60, 0.08, 'triangle', clamp(strength * 0.4, 0.03, 0.3), 0.5);
+    },
     star() { tone(880, 0.12, 'sine', 0.25); setTimeout(() => tone(1320, 0.18, 'sine', 0.22), 70); },
     goal() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'sine', 0.22), i * 90)); },
     fall() { tone(300, 0.6, 'sawtooth', 0.18, 0.15); },
@@ -245,6 +289,9 @@ const game = {
   fallAnim: 0,
   particles: [],
   shake: 0,
+  wobbleT: 0,       // 百香果搖晃相位
+  ballRot: 0,       // 滾動旋轉角(果皮斑點用)
+  squash: null,     // 撞擊擠壓 {t, s, nx, ny}
   mazeLayer: null,      // 預先渲染的牆(效能)
   floorLayer: null,
 };
@@ -275,7 +322,7 @@ function levelParams(lv) {
 function buildLevel(lv) {
   const p = levelParams(lv);
   const rng = mulberry32(lv * 7919 + 12345);
-  const w = window.innerWidth, h = window.innerHeight;
+  const { w, h } = viewSize();
   const portrait = h >= w;
   const shortCells = p.short;
   const ratio = Math.max(w, h) / Math.min(w, h);
@@ -348,7 +395,7 @@ function buildLevel(lv) {
 // 依視窗大小計算格子尺寸與所有幾何(轉向 / 縮放時重呼叫)
 function layout() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = window.innerWidth, h = window.innerHeight;
+  const { w, h } = viewSize();
   canvas.width = w * dpr;
   canvas.height = h * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -404,7 +451,7 @@ function resetBall() {
 /* ---------- 預渲染(牆 & 地板發光層,避免每幀 shadowBlur) ---------- */
 function renderMazeLayer() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = window.innerWidth, h = window.innerHeight;
+  const { w, h } = viewSize();
 
   // 地板
   const floor = document.createElement('canvas');
@@ -412,13 +459,39 @@ function renderMazeLayer() {
   const fc = floor.getContext('2d');
   fc.setTransform(dpr, 0, 0, dpr, 0, 0);
   const fx = game.offX, fy = game.offY, fw = game.cols * game.cellSize, fh = game.rows * game.cellSize;
+  const passion = settings.theme === 'passion';
   const grad = fc.createRadialGradient(fx + fw / 2, fy + fh / 2, 10, fx + fw / 2, fy + fh / 2, Math.max(fw, fh) * 0.75);
-  grad.addColorStop(0, 'rgba(24, 30, 66, 0.9)');
-  grad.addColorStop(1, 'rgba(8, 10, 24, 0.9)');
+  if (passion) {
+    // 金黃果肉
+    grad.addColorStop(0, '#f0b23a');
+    grad.addColorStop(1, '#c07f1a');
+  } else {
+    grad.addColorStop(0, 'rgba(24, 30, 66, 0.9)');
+    grad.addColorStop(1, 'rgba(8, 10, 24, 0.9)');
+  }
   fc.fillStyle = grad;
   fc.fillRect(fx, fy, fw, fh);
+  if (passion) {
+    // 散落的黑籽(帶果凍光澤)
+    const nSeeds = Math.round(game.cols * game.rows * 0.7);
+    for (let i = 0; i < nSeeds; i++) {
+      const sx2 = fx + 4 + Math.random() * (fw - 8);
+      const sy2 = fy + 4 + Math.random() * (fh - 8);
+      const sr = game.cellSize * (0.04 + Math.random() * 0.035);
+      const rot = Math.random() * Math.PI;
+      fc.save();
+      fc.translate(sx2, sy2); fc.rotate(rot);
+      fc.fillStyle = 'rgba(255, 220, 140, 0.5)';
+      fc.beginPath(); fc.ellipse(0, 0, sr * 1.9, sr * 1.5, 0, 0, Math.PI * 2); fc.fill();
+      fc.fillStyle = '#2e1608';
+      fc.beginPath(); fc.ellipse(0, 0, sr * 1.25, sr, 0, 0, Math.PI * 2); fc.fill();
+      fc.fillStyle = 'rgba(255, 240, 200, 0.55)';
+      fc.beginPath(); fc.arc(-sr * 0.35, -sr * 0.3, sr * 0.3, 0, Math.PI * 2); fc.fill();
+      fc.restore();
+    }
+  }
   // 淡格線
-  fc.strokeStyle = 'rgba(90, 120, 220, 0.07)';
+  fc.strokeStyle = passion ? 'rgba(130, 75, 10, 0.12)' : 'rgba(90, 120, 220, 0.07)';
   fc.lineWidth = 1;
   for (let x = 0; x <= game.cols; x++) {
     fc.beginPath(); fc.moveTo(fx + x * game.cellSize, fy); fc.lineTo(fx + x * game.cellSize, fy + fh); fc.stroke();
@@ -434,11 +507,20 @@ function renderMazeLayer() {
   const lc = layer.getContext('2d');
   lc.setTransform(dpr, 0, 0, dpr, 0, 0);
   const wallGrad = lc.createLinearGradient(fx, fy, fx + fw, fy + fh);
-  wallGrad.addColorStop(0, '#4de8ff');
-  wallGrad.addColorStop(0.5, '#7a7dff');
-  wallGrad.addColorStop(1, '#ff5ecf');
-  lc.shadowColor = 'rgba(100, 150, 255, 0.8)';
-  lc.shadowBlur = Math.max(6, game.wallT * 1.6);
+  if (passion) {
+    // 深紫果皮(略帶蠟質感)
+    wallGrad.addColorStop(0, '#6e2a50');
+    wallGrad.addColorStop(0.5, '#471733');
+    wallGrad.addColorStop(1, '#5e2246');
+    lc.shadowColor = 'rgba(40, 8, 20, 0.9)';
+    lc.shadowBlur = Math.max(4, game.wallT * 0.9);
+  } else {
+    wallGrad.addColorStop(0, '#4de8ff');
+    wallGrad.addColorStop(0.5, '#7a7dff');
+    wallGrad.addColorStop(1, '#ff5ecf');
+    lc.shadowColor = 'rgba(100, 150, 255, 0.8)';
+    lc.shadowBlur = Math.max(6, game.wallT * 1.6);
+  }
   lc.fillStyle = wallGrad;
   const rr = Math.min(4, game.wallT / 2);
   for (const r of game.walls) {
@@ -446,9 +528,9 @@ function renderMazeLayer() {
     if (lc.roundRect) lc.roundRect(r.x, r.y, r.w, r.h, rr); else lc.rect(r.x, r.y, r.w, r.h);
     lc.fill();
   }
-  // 亮芯
+  // 亮芯(星雲=發光核心;百香果=果皮蠟質高光)
   lc.shadowBlur = 0;
-  lc.fillStyle = 'rgba(230, 245, 255, 0.35)';
+  lc.fillStyle = passion ? 'rgba(255, 190, 160, 0.16)' : 'rgba(230, 245, 255, 0.35)';
   const inset = game.wallT * 0.3;
   for (const r of game.walls) {
     lc.beginPath();
@@ -459,25 +541,31 @@ function renderMazeLayer() {
   game.mazeLayer = layer;
 }
 
-/* ---------- 物理 ---------- */
-const PHYS = {
-  accel: 2600,      // 最大傾斜時的加速度 px/s²(以 720px 短邊為基準縮放)
-  friction: 1.7,    // 阻尼 /s
-  restitution: 0.38,
-  maxSpeed: 1400,
-};
-
+/* ---------- 物理(參數依主題而異) ---------- */
 function physicsStep(dt) {
   const b = game.ball;
+  const ph = theme().phys;
   const tilt = getTilt();
-  const scale = Math.min(window.innerWidth, window.innerHeight) / 720;
-  b.vx += tilt.x * PHYS.accel * scale * dt;
-  b.vy += tilt.y * PHYS.accel * scale * dt;
-  const damp = Math.exp(-PHYS.friction * dt);
+  const vs = viewSize(); const scale = Math.min(vs.w, vs.h) / 720;
+  b.vx += tilt.x * ph.accel * scale * dt;
+  b.vy += tilt.y * ph.accel * scale * dt;
+  const damp = Math.exp(-ph.friction * dt);
   b.vx *= damp; b.vy *= damp;
-  const sp = Math.hypot(b.vx, b.vy);
-  const maxSp = PHYS.maxSpeed * scale;
-  if (sp > maxSp) { b.vx *= maxSp / sp; b.vy *= maxSp / sp; }
+  let sp = Math.hypot(b.vx, b.vy);
+  const maxSp = ph.maxSpeed * scale;
+  if (sp > maxSp) { b.vx *= maxSp / sp; b.vy *= maxSp / sp; sp = maxSp; }
+
+  // 百香果:果形不正,滾動時會左右搖晃偏移
+  if (ph.wobble && sp > 30) {
+    game.wobbleT += dt * (5 + sp / 150);
+    const k = Math.sin(game.wobbleT * 6) * ph.wobble * scale * (sp / maxSp) * dt;
+    const ux = -b.vy / sp, uy = b.vx / sp;
+    b.vx += ux * k;
+    b.vy += uy * k;
+  }
+
+  // 滾動旋轉(果皮斑點視覺用)
+  game.ballRot += ((b.vx + b.vy) * dt) / Math.max(6, b.r);
 
   // 分段位移,避免高速穿牆
   const steps = clamp(Math.ceil((sp * dt) / (b.r * 0.5)), 1, 8);
@@ -490,7 +578,8 @@ function physicsStep(dt) {
 
 function collideWalls() {
   const b = game.ball;
-  let hitSpeed = 0;
+  const ph = theme().phys;
+  let hitSpeed = 0, hitNx = 0, hitNy = -1;
   for (const r of game.walls) {
     const cx = clamp(b.x, r.x, r.x + r.w);
     const cy = clamp(b.y, r.y, r.y + r.h);
@@ -512,18 +601,20 @@ function collideWalls() {
     b.y += ny * push;
     const vn = b.vx * nx + b.vy * ny;
     if (vn < 0) {
-      hitSpeed = Math.max(hitSpeed, -vn);
-      b.vx -= (1 + PHYS.restitution) * vn * nx;
-      b.vy -= (1 + PHYS.restitution) * vn * ny;
+      if (-vn > hitSpeed) { hitSpeed = -vn; hitNx = nx; hitNy = ny; }
+      b.vx -= (1 + ph.restitution) * vn * nx;
+      b.vy -= (1 + ph.restitution) * vn * ny;
     }
   }
-  const scale = Math.min(window.innerWidth, window.innerHeight) / 720;
+  const vs = viewSize(); const scale = Math.min(vs.w, vs.h) / 720;
   if (hitSpeed > 220 * scale) {
     const s = clamp(hitSpeed / (900 * scale), 0, 1);
     sfx.thud(s);
     buzz(Math.round(8 + s * 25));
     game.shake = Math.min(6, game.shake + s * 5);
     spawnSparks(b.x, b.y, 3 + Math.round(s * 5));
+    // 百香果:撞牆擠壓變形(沿撞擊法線)
+    if (ph.squash) game.squash = { t: 0, s, nx: hitNx, ny: hitNy };
   }
 }
 
@@ -564,7 +655,7 @@ function levelClear() {
   game.state = 'clear';
   sfx.goal();
   buzz([30, 50, 30, 50, 60]);
-  spawnBurst(game.goal.x, game.goal.y, '#4de8ff', 30);
+  spawnBurst(game.goal.x, game.goal.y, settings.theme === 'passion' ? '#ffbe33' : '#4de8ff', 30);
 
   const timeBonus = Math.max(0, 120 - Math.floor(game.time)) * 5;
   const starBonus = game.starsGot * 200;
@@ -580,7 +671,7 @@ function levelClear() {
 
   const starsEl = document.getElementById('clear-stars');
   starsEl.innerHTML = [0, 1, 2].map(i =>
-    `<span class="${i < game.starsGot ? '' : 'off'}">★</span>`).join('');
+    `<span class="${i < game.starsGot ? '' : 'off'}">${theme().icon}</span>`).join('');
   document.getElementById('clear-time').textContent = fmtTime(game.time);
   document.getElementById('clear-score').textContent = '+' + levelScore;
   document.getElementById('clear-total').textContent = game.totalScore;
@@ -591,7 +682,8 @@ function levelClear() {
 function spawnSparks(x, y, n) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, sp = 40 + Math.random() * 140;
-    game.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, t: 0, c: '#9fd8ff', r: 1.5 });
+    const c = settings.theme === 'passion' ? '#ffcf7a' : '#9fd8ff';
+    game.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, t: 0, c, r: 1.5 });
   }
 }
 function spawnBurst(x, y, color, n) {
@@ -615,28 +707,50 @@ const trail = [];
 let time0 = 0;
 
 function draw(now) {
-  const w = window.innerWidth, h = window.innerHeight;
+  const { w, h } = viewSize();
   const t = now / 1000;
   const tilt = getTilt();
 
   ctx.clearRect(0, 0, w, h);
+  const passion = settings.theme === 'passion';
 
-  // 深空背景
-  const bg = ctx.createLinearGradient(0, 0, 0, h);
-  bg.addColorStop(0, '#070a1c');
-  bg.addColorStop(1, '#04050d');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, h);
-
-  // 視差星空(依傾斜移動 → 沉浸感)
-  for (const s of starfield) {
-    const px = s.x * w - tilt.x * 30 * s.z;
-    const py = s.y * h - tilt.y * 30 * s.z;
-    const alpha = 0.3 + 0.5 * Math.abs(Math.sin(t * 1.2 + s.tw));
-    ctx.fillStyle = `rgba(200, 220, 255, ${alpha * s.z})`;
-    ctx.beginPath();
-    ctx.arc(px, py, s.r, 0, Math.PI * 2);
-    ctx.fill();
+  if (passion) {
+    // 熱帶果園夜色背景
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#241007');
+    bg.addColorStop(1, '#130803');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    // 視差飄葉
+    for (const s of starfield) {
+      const px = s.x * w - tilt.x * 30 * s.z;
+      const py = ((s.y * h + t * 10 * s.z) % (h + 40)) - 20 - tilt.y * 20 * s.z;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(s.tw + t * 0.4 * s.z);
+      ctx.fillStyle = `rgba(120, 158, 66, ${0.12 + 0.22 * s.z})`;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s.r * 3.2, s.r * 1.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  } else {
+    // 深空背景
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#070a1c');
+    bg.addColorStop(1, '#04050d');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    // 視差星空(依傾斜移動 → 沉浸感)
+    for (const s of starfield) {
+      const px = s.x * w - tilt.x * 30 * s.z;
+      const py = s.y * h - tilt.y * 30 * s.z;
+      const alpha = 0.3 + 0.5 * Math.abs(Math.sin(t * 1.2 + s.tw));
+      ctx.fillStyle = `rgba(200, 220, 255, ${alpha * s.z})`;
+      ctx.beginPath();
+      ctx.arc(px, py, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   if (!game.maze) return;
@@ -660,59 +774,102 @@ function draw(now) {
   ctx.filter = 'none';
   ctx.restore();
 
-  // 黑洞
+  // 陷阱:百香果=果皮蟲蛀洞;星雲=黑洞
   for (const hole of game.holes) {
     const pulse = 1 + 0.06 * Math.sin(t * 3 + hole.x);
-    const g = ctx.createRadialGradient(hole.x, hole.y, 0, hole.x, hole.y, hole.r * 1.5 * pulse);
-    g.addColorStop(0, '#000');
-    g.addColorStop(0.55, '#0a0418');
-    g.addColorStop(0.8, 'rgba(140, 60, 255, 0.5)');
-    g.addColorStop(1, 'rgba(140, 60, 255, 0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(hole.x, hole.y, hole.r * 1.5 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    // 吸積環
-    ctx.strokeStyle = `rgba(190, 130, 255, ${0.5 + 0.3 * Math.sin(t * 4 + hole.y)})`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(hole.x, hole.y, hole.r * pulse, t % (Math.PI * 2), (t % (Math.PI * 2)) + Math.PI * 1.4);
-    ctx.stroke();
-  }
-
-  // 星星
-  for (const s of game.stars) {
-    if (s.got) continue;
-    const pulse = 1 + 0.15 * Math.sin(t * 4 + s.x);
-    drawStar(s.x, s.y, game.cellSize * 0.17 * pulse, t);
-  }
-
-  // 終點傳送門
-  {
-    const g = game.goal;
-    const pulse = 1 + 0.1 * Math.sin(t * 2.5);
-    const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r * 1.6 * pulse);
-    grad.addColorStop(0, 'rgba(77, 232, 255, 0.9)');
-    grad.addColorStop(0.4, 'rgba(110, 100, 255, 0.5)');
-    grad.addColorStop(1, 'rgba(110, 100, 255, 0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(g.x, g.y, g.r * 1.6 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    for (let k = 0; k < 2; k++) {
-      ctx.strokeStyle = `rgba(160, 220, 255, ${0.8 - k * 0.35})`;
-      ctx.lineWidth = 2 - k * 0.5;
+    if (passion) {
+      const g = ctx.createRadialGradient(hole.x, hole.y, 0, hole.x, hole.y, hole.r * 1.4);
+      g.addColorStop(0, '#0c0402');
+      g.addColorStop(0.55, '#1e0c04');
+      g.addColorStop(0.82, 'rgba(94, 46, 16, 0.85)');
+      g.addColorStop(1, 'rgba(94, 46, 16, 0)');
+      ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(g.x, g.y, g.r * (0.75 + k * 0.35) * pulse, -t * (1.5 + k), -t * (1.5 + k) + Math.PI * 1.5);
+      ctx.arc(hole.x, hole.y, hole.r * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+      // 咬痕碎屑
+      ctx.fillStyle = 'rgba(140, 80, 30, 0.7)';
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + hole.x;
+        ctx.beginPath();
+        ctx.arc(hole.x + Math.cos(a) * hole.r * 1.05, hole.y + Math.sin(a) * hole.r * 1.05, hole.r * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      const g = ctx.createRadialGradient(hole.x, hole.y, 0, hole.x, hole.y, hole.r * 1.5 * pulse);
+      g.addColorStop(0, '#000');
+      g.addColorStop(0.55, '#0a0418');
+      g.addColorStop(0.8, 'rgba(140, 60, 255, 0.5)');
+      g.addColorStop(1, 'rgba(140, 60, 255, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(hole.x, hole.y, hole.r * 1.5 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      // 吸積環
+      ctx.strokeStyle = `rgba(190, 130, 255, ${0.5 + 0.3 * Math.sin(t * 4 + hole.y)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(hole.x, hole.y, hole.r * pulse, t % (Math.PI * 2), (t % (Math.PI * 2)) + Math.PI * 1.4);
       ctx.stroke();
     }
   }
 
-  // 光球拖尾
+  // 收集物:百香果=百香果花;星雲=星星
+  for (const s of game.stars) {
+    if (s.got) continue;
+    const pulse = 1 + 0.15 * Math.sin(t * 4 + s.x);
+    if (passion) drawFlower(s.x, s.y, game.cellSize * 0.16 * pulse, t);
+    else drawStar(s.x, s.y, game.cellSize * 0.17 * pulse, t);
+  }
+
+  // 終點:百香果=果汁漩渦;星雲=傳送門
+  {
+    const g = game.goal;
+    const pulse = 1 + 0.1 * Math.sin(t * 2.5);
+    if (passion) {
+      const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r * 1.6 * pulse);
+      grad.addColorStop(0, '#ffe9a8');
+      grad.addColorStop(0.35, '#ffbe33');
+      grad.addColorStop(0.7, 'rgba(255, 140, 20, 0.55)');
+      grad.addColorStop(1, 'rgba(255, 140, 20, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, g.r * 1.6 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      // 旋轉的果汁紋
+      for (let k = 0; k < 3; k++) {
+        ctx.strokeStyle = `rgba(150, 70, 5, ${0.55 - k * 0.15})`;
+        ctx.lineWidth = Math.max(1.5, g.r * 0.1) - k * 0.4;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, g.r * (0.35 + k * 0.3) * pulse, t * (1.2 + k * 0.4), t * (1.2 + k * 0.4) + Math.PI * 1.3);
+        ctx.stroke();
+      }
+    } else {
+      const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r * 1.6 * pulse);
+      grad.addColorStop(0, 'rgba(77, 232, 255, 0.9)');
+      grad.addColorStop(0.4, 'rgba(110, 100, 255, 0.5)');
+      grad.addColorStop(1, 'rgba(110, 100, 255, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, g.r * 1.6 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      for (let k = 0; k < 2; k++) {
+        ctx.strokeStyle = `rgba(160, 220, 255, ${0.8 - k * 0.35})`;
+        ctx.lineWidth = 2 - k * 0.5;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, g.r * (0.75 + k * 0.35) * pulse, -t * (1.5 + k), -t * (1.5 + k) + Math.PI * 1.5);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // 拖尾:百香果=淡淡的滾痕;星雲=發光拖尾
+  const trailRGB = passion ? '200, 120, 40' : '120, 210, 255';
+  const trailA = passion ? 0.18 : 0.35;
   for (let i = 0; i < trail.length; i++) {
     const p = trail[i];
-    const a = (i / trail.length) * 0.35;
-    ctx.fillStyle = `rgba(120, 210, 255, ${a})`;
+    const a = (i / trail.length) * trailA;
+    ctx.fillStyle = `rgba(${trailRGB}, ${a})`;
     ctx.beginPath();
     ctx.arc(p.x, p.y, game.ball.r * (0.3 + 0.6 * (i / trail.length)), 0, Math.PI * 2);
     ctx.fill();
@@ -748,13 +905,20 @@ function draw(now) {
   // 暈影
   const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.45, w / 2, h / 2, Math.max(w, h) * 0.75);
   vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+  vg.addColorStop(1, passion ? 'rgba(18, 6, 0, 0.5)' : 'rgba(0,0,0,0.45)');
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, w, h);
 }
 
+// 百香果果皮斑點(固定局部座標,隨滾動旋轉)
+const SPECKLES = [];
+for (let i = 0; i < 14; i++) {
+  SPECKLES.push({ a: Math.random() * Math.PI * 2, d: 0.15 + Math.random() * 0.72, s: 0.05 + Math.random() * 0.08 });
+}
+
 function drawBall(x, y, r) {
   if (r <= 0.5) return;
+  if (settings.theme === 'passion') { drawPassionBall(x, y, r); return; }
   const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6);
   glow.addColorStop(0, 'rgba(140, 235, 255, 0.55)');
   glow.addColorStop(1, 'rgba(140, 235, 255, 0)');
@@ -770,6 +934,90 @@ function drawBall(x, y, r) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawPassionBall(x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  // 撞牆擠壓變形(沿撞擊法線壓扁)
+  if (game.squash && game.squash.t < 0.18) {
+    const k = 0.32 * game.squash.s * Math.sin((game.squash.t / 0.18) * Math.PI);
+    const ang = Math.atan2(game.squash.ny, game.squash.nx);
+    ctx.rotate(ang);
+    ctx.scale(1 - k, 1 + k * 0.7);
+    ctx.rotate(-ang);
+  }
+  // 柔和落影(水果不發光,靠影子表現立體)
+  ctx.fillStyle = 'rgba(25, 8, 0, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.12, r * 0.42, r * 0.95, r * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 果體
+  const body = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.15, 0, 0, r);
+  body.addColorStop(0, '#a34866');
+  body.addColorStop(0.45, '#6d1f42');
+  body.addColorStop(1, '#3c0e24');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  // 果皮斑點 + 蒂頭(隨滾動旋轉)
+  ctx.save();
+  ctx.rotate(game.ballRot);
+  ctx.fillStyle = 'rgba(225, 165, 135, 0.3)';
+  for (const sp of SPECKLES) {
+    ctx.beginPath();
+    ctx.arc(Math.cos(sp.a) * sp.d * r, Math.sin(sp.a) * sp.d * r, sp.s * r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#7c9a3e';
+  ctx.beginPath();
+  ctx.arc(0, -r * 0.82, r * 0.16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  // 蠟質高光(固定光源方向,不隨旋轉)
+  ctx.fillStyle = 'rgba(255, 235, 220, 0.45)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.35, -r * 0.42, r * 0.3, r * 0.17, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// 百香果花(西番蓮):白色花瓣 + 紫色絲冠 + 黃色花心
+function drawFlower(x, y, r, t) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.sin(t * 1.5 + x) * 0.12);
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 3);
+  glow.addColorStop(0, 'rgba(255, 250, 235, 0.35)');
+  glow.addColorStop(1, 'rgba(255, 250, 235, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(250, 246, 255, 0.95)';
+  for (let i = 0; i < 6; i++) {
+    ctx.save();
+    ctx.rotate((i / 6) * Math.PI * 2);
+    ctx.beginPath();
+    ctx.ellipse(r * 1.05, 0, r * 1.0, r * 0.38, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.strokeStyle = '#7b3fa0';
+  ctx.lineWidth = Math.max(1, r * 0.12);
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + t * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a) * r * 0.95, Math.sin(a) * r * 0.95);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#ffd23e';
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.34, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawStar(x, y, r, t) {
@@ -804,6 +1052,10 @@ function loop(now) {
   const dt = clamp((now - lastT) / 1000, 0, 0.05);
   lastT = now;
 
+  if (game.squash) {
+    game.squash.t += dt;
+    if (game.squash.t > 0.2) game.squash = null;
+  }
   if (game.state === 'play') {
     game.time += dt;
     physicsStep(dt);
@@ -816,7 +1068,7 @@ function loop(now) {
     if (game.fallAnim >= 0.9) {
       resetBall();
       trail.length = 0;
-      toast('被黑洞吞噬!從起點重來');
+      toast(theme().fallToast);
       game.state = 'play';
     }
   }
@@ -845,7 +1097,7 @@ function fmtTime(s) {
 
 function updateHUD() {
   $('hud-level').textContent = 'LV ' + game.level;
-  $('hud-stars').textContent = `★ ${game.starsGot}/3`;
+  $('hud-stars').textContent = `${theme().icon} ${game.starsGot}/3`;
   $('hud-time').textContent = fmtTime(game.time);
 }
 
@@ -868,7 +1120,7 @@ function startGame() {
   show('hud');
   buildLevel(game.level);
   game.state = 'play';
-  if (game.level === 1) toast('傾斜手機,引導光球到傳送門!');
+  if (game.level === 1) toast(theme().startToast);
 }
 
 function updateBestLine() {
@@ -909,6 +1161,7 @@ function openSettings(from) {
   $('set-sensitivity').value = settings.sensitivity;
   $('set-sound').checked = settings.sound;
   $('set-vibrate').checked = settings.vibrate;
+  $('set-theme').value = settings.theme;
   show('screen-settings');
 }
 $('btn-settings').addEventListener('click', () => openSettings('game'));
@@ -917,9 +1170,19 @@ $('btn-close-settings').addEventListener('click', () => {
   settings.sensitivity = parseFloat($('set-sensitivity').value);
   settings.sound = $('set-sound').checked;
   settings.vibrate = $('set-vibrate').checked;
+  const newTheme = $('set-theme').value;
+  const themeChanged = newTheme !== settings.theme;
+  settings.theme = newTheme;
   store.set('sensitivity', settings.sensitivity);
   store.set('sound', settings.sound);
   store.set('vibrate', settings.vibrate);
+  store.set('theme', settings.theme);
+  if (themeChanged) {
+    applyThemeClass();
+    if (game.maze) renderMazeLayer();  // 重繪牆與地板
+    trail.length = 0;
+    updateHUD();
+  }
   hide('screen-settings');
   if (settingsFrom === 'game') game.state = 'play';
   sfx.click();
@@ -960,12 +1223,13 @@ document.addEventListener('visibilitychange', () => {
 
 function layout0() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = window.innerWidth * dpr;
-  canvas.height = window.innerHeight * dpr;
+  canvas.width = viewSize().w * dpr;
+  canvas.height = viewSize().h * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 /* ---------- 啟動 ---------- */
+applyThemeClass();
 layout0();
 initStarfield();
 updateBestLine();

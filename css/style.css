@@ -9,6 +9,18 @@
   --dim: #8fa0c8;
 }
 
+/* 百香果主題(預設) */
+body.theme-passion {
+  --bg: #170a04;
+  --panel: rgba(48, 25, 13, 0.85);
+  --line: rgba(255, 180, 90, 0.25);
+  --cyan: #ffb52e;
+  --magenta: #c2537f;
+  --gold: #ffd66e;
+  --text: #ffedd8;
+  --dim: #c9a789;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
@@ -206,3 +218,39 @@ html, body {
 }
 .setting-row input[type="range"] { flex: 1; max-width: 170px; accent-color: var(--cyan); }
 .setting-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--cyan); }
+.setting-row select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 15px;
+}
+
+/* ---------- 百香果主題外觀覆蓋 ---------- */
+body.theme-passion .overlay {
+  background: radial-gradient(ellipse at 50% 30%, rgba(90, 45, 20, 0.5), rgba(20, 9, 3, 0.92) 70%);
+}
+body.theme-passion .panel {
+  box-shadow: 0 0 60px rgba(255, 170, 60, 0.12), 0 0 120px rgba(190, 70, 120, 0.08);
+}
+body.theme-passion .panel h1 {
+  background: linear-gradient(90deg, #ffb52e, #e0608a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+body.theme-passion .logo-orb {
+  background:
+    radial-gradient(circle at 62% 68%, rgba(230, 170, 140, 0.35) 0 6%, transparent 7%),
+    radial-gradient(circle at 30% 62%, rgba(230, 170, 140, 0.3) 0 5%, transparent 6%),
+    radial-gradient(circle at 70% 30%, rgba(230, 170, 140, 0.3) 0 4%, transparent 5%),
+    radial-gradient(circle at 35% 30%, #a34866, #6d1f42 55%, #3c0e24 85%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 40px rgba(255, 150, 60, 0.25);
+}
+body.theme-passion .btn-primary {
+  color: #2a1000;
+  background: linear-gradient(90deg, #ffb52e, #ff8a3c);
+  box-shadow: 0 0 22px rgba(255, 160, 50, 0.4);
+}
+body.theme-passion .hud-btn { color: #ffb52e; }
