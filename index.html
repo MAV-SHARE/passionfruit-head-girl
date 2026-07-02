@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Nebula Maze 星雲迷宮</title>
-<meta name="description" content="傾斜手機,引導光球穿越星雲能量迷宮。無限關卡、收集星星、躲避黑洞。">
-<meta name="theme-color" content="#05060f">
+<title>百香果頭女孩</title>
+<meta name="description" content="傾斜手機,讓百香果頭女孩的百香果滾過果肉迷宮。無限關卡、收集花朵、避開蟲蛀洞。">
+<meta name="theme-color" content="#170a04">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Nebula Maze">
+<meta name="apple-mobile-web-app-title" content="百香果頭女孩">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -36,8 +36,8 @@
 <div id="screen-start" class="overlay">
   <div class="panel">
     <div class="logo-orb"></div>
-    <h1 id="title-main">PASSION&nbsp;MAZE</h1>
-    <p class="subtitle" id="title-sub">百香果迷宮</p>
+    <h1 id="title-main">百香果頭女孩</h1>
+    <p class="subtitle" id="title-sub">PASSIONFRUIT HEAD GIRL</p>
     <p class="desc" id="title-desc">傾斜你的手機,讓百香果滾過果肉迷宮。<br>收集花朵、避開蟲蛀洞、滾進果汁漩渦。</p>
     <div class="best" id="best-line"></div>
     <button class="btn-primary" id="btn-start">開始遊戲</button>
@@ -49,7 +49,7 @@
 <!-- 過關畫面 -->
 <div id="screen-clear" class="overlay hidden">
   <div class="panel">
-    <!-- 百香果吉祥物:剖半百香果吃刨冰乘涼(僅百香果主題顯示) -->
+    <!-- 百香果頭少女:剖半百香果當頭的女孩,吃刨冰乘涼(僅百香果主題顯示) -->
     <div id="clear-mascot" aria-hidden="true">
       <svg viewBox="0 0 220 175" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -60,65 +60,80 @@
           </radialGradient>
         </defs>
         <!-- 地面影子 -->
-        <ellipse cx="112" cy="163" rx="66" ry="8" fill="rgba(0,0,0,0.3)"/>
+        <ellipse cx="112" cy="164" rx="60" ry="7" fill="rgba(0,0,0,0.3)"/>
         <g class="m-bob">
-          <!-- 腳 -->
-          <ellipse cx="92" cy="150" rx="10" ry="6" fill="#4a1631"/>
-          <ellipse cx="132" cy="150" rx="10" ry="6" fill="#4a1631"/>
-          <!-- 身體:剖半百香果(果皮 → 白色內皮 → 果肉) -->
-          <circle cx="112" cy="94" r="55" fill="#5a1e3e"/>
-          <circle cx="112" cy="94" r="48" fill="#f6e8d8"/>
-          <circle cx="112" cy="94" r="42" fill="url(#m-pulp)"/>
-          <!-- 果肉裡的黑籽(繞一圈) -->
+          <!-- 腿與鞋 -->
+          <line x1="103" y1="128" x2="103" y2="149" stroke="#ffd9b8" stroke-width="5" stroke-linecap="round"/>
+          <line x1="121" y1="128" x2="121" y2="149" stroke="#ffd9b8" stroke-width="5" stroke-linecap="round"/>
+          <ellipse cx="102" cy="152" rx="7" ry="4.5" fill="#4a1631"/>
+          <ellipse cx="122" cy="152" rx="7" ry="4.5" fill="#4a1631"/>
+          <!-- 脖子 -->
+          <rect x="108" y="80" width="8" height="10" rx="3" fill="#ffd9b8"/>
+          <!-- 洋裝 -->
+          <path d="M94 90 Q112 84 130 90 L141 131 Q112 141 83 131 Z" fill="#8f3a6b"/>
+          <path d="M85 124 Q112 134 139 124" stroke="#ffb52e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <circle cx="112" cy="102" r="2" fill="#ffd66e"/>
+          <circle cx="112" cy="112" r="2" fill="#ffd66e"/>
+          <ellipse cx="112" cy="89" rx="9" ry="3.5" fill="#fff7ea"/>
+          <!-- 頭:剖半百香果(果皮 → 白色內皮 → 果肉臉) -->
+          <circle cx="112" cy="52" r="34" fill="#5a1e3e"/>
+          <circle cx="112" cy="52" r="29.5" fill="#f6e8d8"/>
+          <circle cx="112" cy="52" r="26" fill="url(#m-pulp)"/>
+          <!-- 果肉黑籽(避開臉的位置) -->
           <g fill="#2e1608">
-            <ellipse cx="112" cy="60" rx="4.5" ry="3.5"/>
-            <ellipse cx="138" cy="70" rx="4.5" ry="3.5" transform="rotate(40 138 70)"/>
-            <ellipse cx="146" cy="96" rx="4.5" ry="3.5" transform="rotate(80 146 96)"/>
-            <ellipse cx="136" cy="122" rx="4.5" ry="3.5" transform="rotate(130 136 122)"/>
-            <ellipse cx="88" cy="122" rx="4.5" ry="3.5" transform="rotate(50 88 122)"/>
-            <ellipse cx="78" cy="96" rx="4.5" ry="3.5" transform="rotate(100 78 96)"/>
-            <ellipse cx="86" cy="70" rx="4.5" ry="3.5" transform="rotate(140 86 70)"/>
+            <ellipse cx="112" cy="33.5" rx="3.6" ry="2.8"/>
+            <ellipse cx="95" cy="41" rx="3.6" ry="2.8" transform="rotate(-40 95 41)"/>
+            <ellipse cx="129" cy="41" rx="3.6" ry="2.8" transform="rotate(40 129 41)"/>
+            <ellipse cx="90" cy="58" rx="3.6" ry="2.8" transform="rotate(-80 90 58)"/>
+            <ellipse cx="134" cy="58" rx="3.6" ry="2.8" transform="rotate(80 134 58)"/>
           </g>
           <g fill="rgba(255,245,215,0.75)">
-            <circle cx="110.6" cy="59" r="1.1"/>
-            <circle cx="136.6" cy="69" r="1.1"/>
-            <circle cx="144.6" cy="95" r="1.1"/>
-            <circle cx="86.6" cy="121" r="1.1"/>
-            <circle cx="76.6" cy="95" r="1.1"/>
+            <circle cx="111" cy="32.8" r="0.9"/>
+            <circle cx="94" cy="40.2" r="0.9"/>
+            <circle cx="128" cy="40.2" r="0.9"/>
           </g>
-          <!-- 頭頂嫩芽 -->
-          <path d="M112 40 Q111 30 106 26" stroke="#5d8a34" stroke-width="3" fill="none" stroke-linecap="round"/>
-          <ellipse cx="100" cy="24" rx="8" ry="4.5" fill="#6fae3d" transform="rotate(-28 100 24)"/>
-          <ellipse cx="115" cy="22" rx="7" ry="4" fill="#8cc455" transform="rotate(18 115 22)"/>
+          <!-- 頭頂嫩芽 + 百香果花髮飾 -->
+          <path d="M112 18 Q111 11 107 8" stroke="#5d8a34" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <ellipse cx="102" cy="7" rx="7" ry="4" fill="#6fae3d" transform="rotate(-26 102 7)"/>
+          <ellipse cx="116" cy="5" rx="6" ry="3.5" fill="#8cc455" transform="rotate(16 116 5)"/>
+          <g transform="translate(86 29)">
+            <g fill="#fdf8ff">
+              <ellipse rx="5.5" ry="2.2" transform="rotate(0)"/>
+              <ellipse rx="5.5" ry="2.2" transform="rotate(60)"/>
+              <ellipse rx="5.5" ry="2.2" transform="rotate(120)"/>
+            </g>
+            <circle r="2.4" fill="#7b3fa0"/>
+            <circle r="1.1" fill="#ffd23e"/>
+          </g>
           <!-- 臉 -->
           <g class="m-eye">
-            <circle cx="97" cy="88" r="5.2" fill="#241008"/>
-            <circle cx="99" cy="86" r="1.8" fill="#fff"/>
+            <circle cx="101" cy="54" r="4.6" fill="#241008"/>
+            <circle cx="102.6" cy="52.4" r="1.5" fill="#fff"/>
           </g>
           <g class="m-eye">
-            <circle cx="127" cy="88" r="5.2" fill="#241008"/>
-            <circle cx="129" cy="86" r="1.8" fill="#fff"/>
+            <circle cx="123" cy="54" r="4.6" fill="#241008"/>
+            <circle cx="124.6" cy="52.4" r="1.5" fill="#fff"/>
           </g>
-          <ellipse cx="84" cy="101" rx="6.5" ry="3.6" fill="rgba(255,110,110,0.5)"/>
-          <ellipse cx="140" cy="101" rx="6.5" ry="3.6" fill="rgba(255,110,110,0.5)"/>
+          <ellipse cx="93" cy="63" rx="5.5" ry="3" fill="rgba(255,110,110,0.5)"/>
+          <ellipse cx="131" cy="63" rx="5.5" ry="3" fill="rgba(255,110,110,0.5)"/>
           <!-- 吃冰的嘴(開口) -->
-          <ellipse cx="112" cy="106" rx="7.5" ry="5.5" fill="#7a2430"/>
-          <ellipse cx="112" cy="108.5" rx="4.5" ry="2.4" fill="#e86a6a"/>
-          <!-- 左手:湯匙(往嘴巴來回) -->
+          <ellipse cx="112" cy="68" rx="5.5" ry="4" fill="#7a2430"/>
+          <ellipse cx="112" cy="70" rx="3.2" ry="1.7" fill="#e86a6a"/>
+          <!-- 左手:湯匙(舀刨冰) -->
           <g class="m-arm-spoon">
-            <path d="M60 102 Q62 118 72 127" stroke="#5a1e3e" stroke-width="9" fill="none" stroke-linecap="round"/>
-            <circle cx="73" cy="128" r="6.5" fill="#5a1e3e"/>
-            <line x1="73" y1="128" x2="65" y2="143" stroke="#b9c2cf" stroke-width="3.5" stroke-linecap="round"/>
-            <ellipse cx="63.5" cy="146" rx="5.5" ry="4" fill="#cfd6e0"/>
-            <circle cx="63.5" cy="144" r="3.2" fill="#ffffff"/>
+            <path d="M96 94 Q86 106 79 120" stroke="#ffd9b8" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+            <circle cx="78" cy="122" r="4.5" fill="#ffd9b8"/>
+            <line x1="78" y1="122" x2="68" y2="139" stroke="#b9c2cf" stroke-width="3.5" stroke-linecap="round"/>
+            <ellipse cx="66" cy="142" rx="5" ry="3.6" fill="#cfd6e0"/>
+            <circle cx="66" cy="140" r="3" fill="#ffffff"/>
           </g>
           <!-- 右手:小圓扇(乘涼) -->
           <g class="m-arm-fan">
-            <path d="M164 102 Q166 114 170 120" stroke="#5a1e3e" stroke-width="9" fill="none" stroke-linecap="round"/>
-            <circle cx="170" cy="121" r="6.5" fill="#5a1e3e"/>
-            <line x1="170" y1="121" x2="181" y2="107" stroke="#c98a3a" stroke-width="3.5" stroke-linecap="round"/>
-            <circle cx="186" cy="100" r="13" fill="#ffedc2" stroke="#e88f2a" stroke-width="2.5"/>
-            <path d="M186 88 V112 M175.6 94 L196.4 106 M175.6 106 L196.4 94" stroke="#e8b46a" stroke-width="1.4"/>
+            <path d="M128 94 Q140 104 149 113" stroke="#ffd9b8" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+            <circle cx="150" cy="114" r="4.5" fill="#ffd9b8"/>
+            <line x1="150" y1="114" x2="161" y2="101" stroke="#c98a3a" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="166" cy="94" r="12" fill="#ffedc2" stroke="#e88f2a" stroke-width="2.5"/>
+            <path d="M166 83 V105 M156.6 88.5 L175.4 99.5 M156.6 99.5 L175.4 88.5" stroke="#e8b46a" stroke-width="1.4"/>
           </g>
         </g>
         <!-- 刨冰(玻璃碗 + 冰山 + 百香果醬) -->

@@ -1,5 +1,5 @@
-/* Nebula Maze — Service Worker(離線快取) */
-const CACHE = 'nebula-maze-v3';
+/* 百香果頭女孩 — Service Worker(離線快取) */
+const CACHE = 'pfhg-v4';
 const ASSETS = [
   './',
   './index.html',

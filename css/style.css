@@ -210,7 +210,7 @@ body.theme-passion #clear-mascot { display: block; }
 }
 #clear-mascot .m-arm-spoon {
   transform-box: fill-box;
-  transform-origin: 15% 10%;
+  transform-origin: 92% 6%;
   animation: m-spoon 2.8s ease-in-out infinite;
 }
 @keyframes m-spoon {
@@ -219,7 +219,7 @@ body.theme-passion #clear-mascot { display: block; }
 }
 #clear-mascot .m-arm-fan {
   transform-box: fill-box;
-  transform-origin: 10% 15%;
+  transform-origin: 9% 33%;
   animation: m-fan 1.6s ease-in-out infinite;
 }
 @keyframes m-fan {
