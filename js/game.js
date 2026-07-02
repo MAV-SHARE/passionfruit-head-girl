@@ -57,6 +57,64 @@ const THEMES = {
     fallToast: '掉進蟲蛀洞!從起點重來',
     clearTitle: '恭喜過關!',
     phys: { accel: 2300, friction: 2.6, restitution: 0.12, maxSpeed: 1000, wobble: 130, squash: true },
+    style: {
+      ball: 'passion', decor: 'passionSeeds',
+      bg: ['#241007', '#130803'], leaf: '120, 158, 66',
+      floor: ['#f0b23a', '#c07f1a'], grid: 'rgba(130, 75, 10, 0.12)',
+      wall: ['#6e2a50', '#471733', '#5e2246'],
+      wallShadow: 'rgba(40, 8, 20, 0.9)', sheen: 'rgba(255, 190, 160, 0.16)',
+      trail: '200, 120, 40',
+      goal: ['#ffe9a8', '#ffbe33', '255, 140, 20'], swirl: '150, 70, 5',
+      holeRim: '94, 46, 16', crumb: 'rgba(140, 80, 30, 0.7)',
+      flower: { petal: 'rgba(250, 246, 255, 0.95)', fringe: '#7b3fa0', center: '#ffd23e' },
+      spark: '#ffcf7a', burst: '#ffbe33', vignette: 'rgba(18, 6, 0, 0.5)',
+    },
+  },
+  // 蘋果 — 略帶彈性,但果形不對稱,滾動會偏出弧線、不走直線(curve)
+  apple: {
+    icon: '❀',
+    h1: '百香果頭女孩',
+    sub: '蘋果模式 APPLE',
+    desc: '傾斜你的手機,讓蘋果滾過果園迷宮。<br>小心:蘋果滾起來會偏出弧線,不走直線!',
+    startToast: '蘋果會滾出弧線,提前修正方向!',
+    fallToast: '掉進蟲蛀洞!從起點重來',
+    clearTitle: '恭喜過關!',
+    phys: { accel: 2400, friction: 2.2, restitution: 0.24, maxSpeed: 1100, wobble: 0, curve: 1.7, squash: false },
+    style: {
+      ball: 'apple', decor: 'appleCore',
+      bg: ['#18200a', '#0b1004'], leaf: '150, 185, 80',
+      floor: ['#fdf3d0', '#e0c188'], grid: 'rgba(160, 110, 40, 0.10)',
+      wall: ['#c93b3b', '#8e1f2c', '#b83a4e'],
+      wallShadow: 'rgba(60, 10, 12, 0.9)', sheen: 'rgba(255, 220, 210, 0.22)',
+      trail: '210, 90, 80',
+      goal: ['#fff0c0', '#ffc84d', '255, 160, 40'], swirl: '150, 60, 20',
+      holeRim: '110, 70, 30', crumb: 'rgba(150, 100, 40, 0.7)',
+      flower: { petal: 'rgba(255, 240, 246, 0.96)', fringe: '#e885a8', center: '#ffd23e' },
+      spark: '#ffb3a0', burst: '#ff8a5c', vignette: 'rgba(8, 12, 0, 0.5)',
+    },
+  },
+  // 鳳梨 — 最難滾:靜摩擦死區(deadzone,傾斜不夠推不動)、幾乎不彈、一路顛簸(jitter)
+  pineapple: {
+    icon: '✾',
+    h1: '百香果頭女孩',
+    sub: '鳳梨模式 PINEAPPLE',
+    desc: '傾斜你的手機,推動不太會滾的鳳梨。<br>傾斜太小推不動,滾起來還會一路顛簸!',
+    startToast: '鳳梨超難滾,傾斜要夠大才推得動!',
+    fallToast: '掉進坑洞!從起點重來',
+    clearTitle: '恭喜過關!',
+    phys: { accel: 2700, friction: 3.4, restitution: 0.06, maxSpeed: 750, wobble: 0, jitter: 3200, deadzone: 0.14, squash: false },
+    style: {
+      ball: 'pineapple', decor: 'pineRings',
+      bg: ['#20180a', '#100b04'], leaf: '110, 150, 60',
+      floor: ['#ffd54f', '#d9a520'], grid: 'rgba(150, 100, 20, 0.14)',
+      wall: ['#9a6b1f', '#6b4713', '#8a5d1d'],
+      wallShadow: 'rgba(40, 25, 5, 0.9)', sheen: 'rgba(255, 230, 170, 0.18)',
+      trail: '220, 160, 40',
+      goal: ['#fff3b8', '#ffd23e', '255, 180, 20'], swirl: '140, 90, 10',
+      holeRim: '100, 65, 20', crumb: 'rgba(150, 100, 30, 0.7)',
+      flower: { petal: 'rgba(240, 230, 255, 0.95)', fringe: '#a05ac8', center: '#ffde55' },
+      spark: '#ffe08a', burst: '#ffd23e', vignette: 'rgba(14, 10, 0, 0.5)',
+    },
   },
   // 星雲能量球 — 低摩擦、高彈性
   nebula: {
@@ -73,7 +131,7 @@ const THEMES = {
 const theme = () => THEMES[settings.theme] || THEMES.passion;
 function applyThemeClass() {
   const th = theme();
-  document.body.classList.toggle('theme-passion', settings.theme === 'passion');
+  document.body.className = th.style ? 'theme-' + settings.theme : '';
   const h1 = document.getElementById('title-main');
   if (h1) {
     h1.textContent = th.h1.replace(' ', ' ');
@@ -110,7 +168,8 @@ const sfx = (() => {
   return {
     unlock: ensure,
     thud(strength) {
-      if (settings.theme === 'passion') tone(55 + strength * 35, 0.12, 'sine', clamp(strength * 0.5, 0.04, 0.35), 0.4);
+      // 水果系:低沉悶響;星雲:清脆撞擊
+      if (theme().style) tone(55 + strength * 35, 0.12, 'sine', clamp(strength * 0.5, 0.04, 0.35), 0.4);
       else tone(90 + strength * 60, 0.08, 'triangle', clamp(strength * 0.4, 0.03, 0.3), 0.5);
     },
     star() { tone(880, 0.12, 'sine', 0.25); setTimeout(() => tone(1320, 0.18, 'sine', 0.22), 70); },
@@ -530,20 +589,20 @@ function renderMazeLayer() {
   const fc = floor.getContext('2d');
   fc.setTransform(dpr, 0, 0, dpr, 0, 0);
   const fx = game.offX, fy = game.offY, fw = game.cols * game.cellSize, fh = game.rows * game.cellSize;
-  const passion = settings.theme === 'passion';
+  const style = theme().style;
   const grad = fc.createRadialGradient(fx + fw / 2, fy + fh / 2, 10, fx + fw / 2, fy + fh / 2, Math.max(fw, fh) * 0.75);
-  if (passion) {
-    // 金黃果肉
-    grad.addColorStop(0, '#f0b23a');
-    grad.addColorStop(1, '#c07f1a');
+  if (style) {
+    // 果肉地板
+    grad.addColorStop(0, style.floor[0]);
+    grad.addColorStop(1, style.floor[1]);
   } else {
     grad.addColorStop(0, 'rgba(24, 30, 66, 0.9)');
     grad.addColorStop(1, 'rgba(8, 10, 24, 0.9)');
   }
   fc.fillStyle = grad;
   fc.fillRect(fx, fy, fw, fh);
-  if (passion) {
-    // 散落的黑籽(帶果凍光澤)
+  if (style && style.decor === 'passionSeeds') {
+    // 百香果:散落的黑籽(帶果凍光澤)
     const nSeeds = Math.round(game.cols * game.rows * 0.7);
     for (let i = 0; i < nSeeds; i++) {
       const sx2 = fx + 4 + Math.random() * (fw - 8);
@@ -560,9 +619,59 @@ function renderMazeLayer() {
       fc.beginPath(); fc.arc(-sr * 0.35, -sr * 0.3, sr * 0.3, 0, Math.PI * 2); fc.fill();
       fc.restore();
     }
+  } else if (style && style.decor === 'appleCore') {
+    // 蘋果:中央果核星形籽 + 放射狀果肉纖維
+    const cx0 = fx + fw / 2, cy0 = fy + fh / 2;
+    fc.save();
+    fc.strokeStyle = 'rgba(190, 140, 70, 0.15)';
+    fc.lineWidth = 1.5;
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      fc.beginPath();
+      fc.moveTo(cx0 + Math.cos(a) * game.cellSize * 0.8, cy0 + Math.sin(a) * game.cellSize * 0.8);
+      fc.lineTo(cx0 + Math.cos(a) * Math.max(fw, fh) * 0.5, cy0 + Math.sin(a) * Math.max(fw, fh) * 0.5);
+      fc.stroke();
+    }
+    fc.strokeStyle = 'rgba(170, 120, 50, 0.3)';
+    fc.lineWidth = 2;
+    fc.beginPath(); fc.arc(cx0, cy0, game.cellSize * 0.75, 0, Math.PI * 2); fc.stroke();
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      fc.save();
+      fc.translate(cx0 + Math.cos(a) * game.cellSize * 0.42, cy0 + Math.sin(a) * game.cellSize * 0.42);
+      fc.rotate(a + Math.PI / 2);
+      fc.fillStyle = '#4a2c10';
+      fc.beginPath(); fc.ellipse(0, 0, game.cellSize * 0.06, game.cellSize * 0.11, 0, 0, Math.PI * 2); fc.fill();
+      fc.restore();
+    }
+    fc.restore();
+  } else if (style && style.decor === 'pineRings') {
+    // 鳳梨:同心果肉環紋 + 纖維短刻
+    const cx0 = fx + fw / 2, cy0 = fy + fh / 2;
+    fc.save();
+    fc.strokeStyle = 'rgba(180, 120, 20, 0.18)';
+    fc.lineWidth = Math.max(2, game.cellSize * 0.06);
+    const maxR = Math.hypot(fw, fh) / 2;
+    for (let r0 = game.cellSize * 0.8; r0 < maxR; r0 += game.cellSize * 1.1) {
+      fc.beginPath(); fc.arc(cx0, cy0, r0, 0, Math.PI * 2); fc.stroke();
+    }
+    fc.strokeStyle = 'rgba(160, 105, 15, 0.22)';
+    fc.lineWidth = 1.5;
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr0 = game.cellSize * 0.8 + Math.random() * (maxR - game.cellSize);
+      const x1 = cx0 + Math.cos(a) * rr0, y1 = cy0 + Math.sin(a) * rr0;
+      fc.beginPath();
+      fc.moveTo(x1, y1);
+      fc.lineTo(x1 + Math.cos(a) * game.cellSize * 0.18, y1 + Math.sin(a) * game.cellSize * 0.18);
+      fc.stroke();
+    }
+    fc.fillStyle = 'rgba(255, 240, 180, 0.35)';
+    fc.beginPath(); fc.arc(cx0, cy0, game.cellSize * 0.3, 0, Math.PI * 2); fc.fill();
+    fc.restore();
   }
   // 淡格線
-  fc.strokeStyle = passion ? 'rgba(130, 75, 10, 0.12)' : 'rgba(90, 120, 220, 0.07)';
+  fc.strokeStyle = style ? style.grid : 'rgba(90, 120, 220, 0.07)';
   fc.lineWidth = 1;
   for (let x = 0; x <= game.cols; x++) {
     fc.beginPath(); fc.moveTo(fx + x * game.cellSize, fy); fc.lineTo(fx + x * game.cellSize, fy + fh); fc.stroke();
@@ -578,12 +687,12 @@ function renderMazeLayer() {
   const lc = layer.getContext('2d');
   lc.setTransform(dpr, 0, 0, dpr, 0, 0);
   const wallGrad = lc.createLinearGradient(fx, fy, fx + fw, fy + fh);
-  if (passion) {
-    // 深紫果皮(略帶蠟質感)
-    wallGrad.addColorStop(0, '#6e2a50');
-    wallGrad.addColorStop(0.5, '#471733');
-    wallGrad.addColorStop(1, '#5e2246');
-    lc.shadowColor = 'rgba(40, 8, 20, 0.9)';
+  if (style) {
+    // 果皮牆(略帶蠟質感)
+    wallGrad.addColorStop(0, style.wall[0]);
+    wallGrad.addColorStop(0.5, style.wall[1]);
+    wallGrad.addColorStop(1, style.wall[2]);
+    lc.shadowColor = style.wallShadow;
     lc.shadowBlur = Math.max(4, game.wallT * 0.9);
   } else {
     wallGrad.addColorStop(0, '#4de8ff');
@@ -599,9 +708,9 @@ function renderMazeLayer() {
     if (lc.roundRect) lc.roundRect(r.x, r.y, r.w, r.h, rr); else lc.rect(r.x, r.y, r.w, r.h);
     lc.fill();
   }
-  // 亮芯(星雲=發光核心;百香果=果皮蠟質高光)
+  // 亮芯(星雲=發光核心;水果=果皮蠟質高光)
   lc.shadowBlur = 0;
-  lc.fillStyle = passion ? 'rgba(255, 190, 160, 0.16)' : 'rgba(230, 245, 255, 0.35)';
+  lc.fillStyle = style ? style.sheen : 'rgba(230, 245, 255, 0.35)';
   const inset = game.wallT * 0.3;
   for (const r of game.walls) {
     lc.beginPath();
@@ -618,8 +727,18 @@ function physicsStep(dt) {
   const ph = theme().phys;
   const tilt = getTilt();
   const vs = viewSize(); const scale = Math.min(vs.w, vs.h) / 720;
-  b.vx += tilt.x * ph.accel * scale * dt;
-  b.vy += tilt.y * ph.accel * scale * dt;
+  // 鳳梨:靜摩擦死區 — 傾斜量不到門檻推不動,超過後扣除門檻再出力
+  let tx = tilt.x, ty = tilt.y;
+  if (ph.deadzone) {
+    const tm = Math.hypot(tx, ty);
+    if (tm < ph.deadzone) { tx = 0; ty = 0; }
+    else {
+      const k = (tm - ph.deadzone) / (1 - ph.deadzone) / tm;
+      tx *= k; ty *= k;
+    }
+  }
+  b.vx += tx * ph.accel * scale * dt;
+  b.vy += ty * ph.accel * scale * dt;
   const damp = Math.exp(-ph.friction * dt);
   b.vx *= damp; b.vy *= damp;
   let sp = Math.hypot(b.vx, b.vy);
@@ -633,6 +752,22 @@ function physicsStep(dt) {
     const ux = -b.vy / sp, uy = b.vx / sp;
     b.vx += ux * k;
     b.vy += uy * k;
+  }
+
+  // 蘋果:果形不對稱,滾動方向持續偏彎(速度向量緩慢旋轉)
+  if (ph.curve && sp > 30) {
+    game.wobbleT += dt;
+    const ang = ph.curve * (sp / maxSp) * Math.sin(game.wobbleT * 1.1) * dt;
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    const nvx = b.vx * ca - b.vy * sa;
+    b.vy = b.vx * sa + b.vy * ca;
+    b.vx = nvx;
+  }
+
+  // 鳳梨:表面凹凸,滾動時一路顛簸抖動
+  if (ph.jitter && sp > 40) {
+    b.vx += (Math.random() - 0.5) * ph.jitter * scale * dt;
+    b.vy += (Math.random() - 0.5) * ph.jitter * scale * dt;
   }
 
   // 滾動旋轉(果皮斑點視覺用)
@@ -726,7 +861,7 @@ function levelClear() {
   game.state = 'clear';
   sfx.goal();
   buzz([30, 50, 30, 50, 60]);
-  spawnBurst(game.goal.x, game.goal.y, settings.theme === 'passion' ? '#ffbe33' : '#4de8ff', 30);
+  spawnBurst(game.goal.x, game.goal.y, theme().style ? theme().style.burst : '#4de8ff', 30);
 
   const timeBonus = Math.max(0, 120 - Math.floor(game.time)) * 5;
   const starBonus = game.starsGot * 200;
@@ -754,7 +889,7 @@ function levelClear() {
 function spawnSparks(x, y, n) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, sp = 40 + Math.random() * 140;
-    const c = settings.theme === 'passion' ? '#ffcf7a' : '#9fd8ff';
+    const c = theme().style ? theme().style.spark : '#9fd8ff';
     game.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, t: 0, c, r: 1.5 });
   }
 }
@@ -784,13 +919,13 @@ function draw(now) {
   const tilt = getTilt();
 
   ctx.clearRect(0, 0, w, h);
-  const passion = settings.theme === 'passion';
+  const style = theme().style;
 
-  if (passion) {
-    // 熱帶果園夜色背景
+  if (style) {
+    // 果園夜色背景
     const bg = ctx.createLinearGradient(0, 0, 0, h);
-    bg.addColorStop(0, '#241007');
-    bg.addColorStop(1, '#130803');
+    bg.addColorStop(0, style.bg[0]);
+    bg.addColorStop(1, style.bg[1]);
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
     // 視差飄葉
@@ -800,7 +935,7 @@ function draw(now) {
       ctx.save();
       ctx.translate(px, py);
       ctx.rotate(s.tw + t * 0.4 * s.z);
-      ctx.fillStyle = `rgba(120, 158, 66, ${0.12 + 0.22 * s.z})`;
+      ctx.fillStyle = `rgba(${style.leaf}, ${0.12 + 0.22 * s.z})`;
       ctx.beginPath();
       ctx.ellipse(0, 0, s.r * 3.2, s.r * 1.2, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -846,21 +981,21 @@ function draw(now) {
   ctx.filter = 'none';
   ctx.restore();
 
-  // 陷阱:百香果=果皮蟲蛀洞;星雲=黑洞
+  // 陷阱:水果=果皮蟲蛀洞;星雲=黑洞
   for (const hole of game.holes) {
     const pulse = 1 + 0.06 * Math.sin(t * 3 + hole.x);
-    if (passion) {
+    if (style) {
       const g = ctx.createRadialGradient(hole.x, hole.y, 0, hole.x, hole.y, hole.r * 1.4);
       g.addColorStop(0, '#0c0402');
       g.addColorStop(0.55, '#1e0c04');
-      g.addColorStop(0.82, 'rgba(94, 46, 16, 0.85)');
-      g.addColorStop(1, 'rgba(94, 46, 16, 0)');
+      g.addColorStop(0.82, `rgba(${style.holeRim}, 0.85)`);
+      g.addColorStop(1, `rgba(${style.holeRim}, 0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(hole.x, hole.y, hole.r * 1.4, 0, Math.PI * 2);
       ctx.fill();
       // 咬痕碎屑
-      ctx.fillStyle = 'rgba(140, 80, 30, 0.7)';
+      ctx.fillStyle = style.crumb;
       for (let k = 0; k < 6; k++) {
         const a = (k / 6) * Math.PI * 2 + hole.x;
         ctx.beginPath();
@@ -886,11 +1021,11 @@ function draw(now) {
     }
   }
 
-  // 收集物:百香果=百香果花;星雲=星星
+  // 收集物:水果=花朵;星雲=星星
   for (const s of game.stars) {
     if (s.got) continue;
     const pulse = 1 + 0.15 * Math.sin(t * 4 + s.x);
-    if (passion) drawFlower(s.x, s.y, game.cellSize * 0.16 * pulse, t);
+    if (style) drawFlower(s.x, s.y, game.cellSize * 0.16 * pulse, t, style.flower);
     else drawStar(s.x, s.y, game.cellSize * 0.17 * pulse, t);
   }
 
@@ -898,19 +1033,19 @@ function draw(now) {
   {
     const g = game.goal;
     const pulse = 1 + 0.1 * Math.sin(t * 2.5);
-    if (passion) {
+    if (style) {
       const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r * 1.6 * pulse);
-      grad.addColorStop(0, '#ffe9a8');
-      grad.addColorStop(0.35, '#ffbe33');
-      grad.addColorStop(0.7, 'rgba(255, 140, 20, 0.55)');
-      grad.addColorStop(1, 'rgba(255, 140, 20, 0)');
+      grad.addColorStop(0, style.goal[0]);
+      grad.addColorStop(0.35, style.goal[1]);
+      grad.addColorStop(0.7, `rgba(${style.goal[2]}, 0.55)`);
+      grad.addColorStop(1, `rgba(${style.goal[2]}, 0)`);
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(g.x, g.y, g.r * 1.6 * pulse, 0, Math.PI * 2);
       ctx.fill();
       // 旋轉的果汁紋
       for (let k = 0; k < 3; k++) {
-        ctx.strokeStyle = `rgba(150, 70, 5, ${0.55 - k * 0.15})`;
+        ctx.strokeStyle = `rgba(${style.swirl}, ${0.55 - k * 0.15})`;
         ctx.lineWidth = Math.max(1.5, g.r * 0.1) - k * 0.4;
         ctx.beginPath();
         ctx.arc(g.x, g.y, g.r * (0.35 + k * 0.3) * pulse, t * (1.2 + k * 0.4), t * (1.2 + k * 0.4) + Math.PI * 1.3);
@@ -935,9 +1070,9 @@ function draw(now) {
     }
   }
 
-  // 拖尾:百香果=淡淡的滾痕;星雲=發光拖尾
-  const trailRGB = passion ? '200, 120, 40' : '120, 210, 255';
-  const trailA = passion ? 0.18 : 0.35;
+  // 拖尾:水果=淡淡的滾痕;星雲=發光拖尾
+  const trailRGB = style ? style.trail : '120, 210, 255';
+  const trailA = style ? 0.18 : 0.35;
   for (let i = 0; i < trail.length; i++) {
     const p = trail[i];
     const a = (i / trail.length) * trailA;
@@ -977,7 +1112,7 @@ function draw(now) {
   // 暈影
   const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.45, w / 2, h / 2, Math.max(w, h) * 0.75);
   vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, passion ? 'rgba(18, 6, 0, 0.5)' : 'rgba(0,0,0,0.45)');
+  vg.addColorStop(1, style ? style.vignette : 'rgba(0,0,0,0.45)');
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, w, h);
 }
@@ -990,7 +1125,13 @@ for (let i = 0; i < 14; i++) {
 
 function drawBall(x, y, r) {
   if (r <= 0.5) return;
-  if (settings.theme === 'passion') { drawPassionBall(x, y, r); return; }
+  const style = theme().style;
+  if (style) {
+    if (style.ball === 'passion') drawPassionBall(x, y, r);
+    else if (style.ball === 'apple') drawAppleBall(x, y, r);
+    else drawPineappleBall(x, y, r);
+    return;
+  }
   const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6);
   glow.addColorStop(0, 'rgba(140, 235, 255, 0.55)');
   glow.addColorStop(1, 'rgba(140, 235, 255, 0)');
@@ -1055,8 +1196,113 @@ function drawPassionBall(x, y, r) {
   ctx.restore();
 }
 
-// 百香果花(西番蓮):白色花瓣 + 紫色絲冠 + 黃色花心
-function drawFlower(x, y, r, t) {
+// 蘋果:紅果皮 + 蒂頭與葉子(隨滾動旋轉)
+function drawAppleBall(x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = 'rgba(20, 8, 0, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.12, r * 0.42, r * 0.95, r * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const body = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.15, 0, 0, r);
+  body.addColorStop(0, '#ff8a70');
+  body.addColorStop(0.45, '#d92f2f');
+  body.addColorStop(1, '#8e1420');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  // 淡色直紋 + 蒂頭與葉子(隨滾動旋轉,看得出在轉)
+  ctx.save();
+  ctx.rotate(game.ballRot);
+  ctx.strokeStyle = 'rgba(255, 200, 160, 0.22)';
+  ctx.lineWidth = Math.max(1, r * 0.09);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * r * 0.25, Math.sin(a) * r * 0.25, r * 0.62, a - 0.5, a + 0.5);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#6b4713';
+  ctx.lineWidth = Math.max(1.5, r * 0.12);
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 0.7);
+  ctx.lineTo(0, -r * 1.05);
+  ctx.stroke();
+  ctx.fillStyle = '#6fae3d';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.22, -r * 0.95, r * 0.26, r * 0.13, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  // 高光(固定光源)
+  ctx.fillStyle = 'rgba(255, 240, 230, 0.5)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.35, -r * 0.42, r * 0.3, r * 0.17, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// 鳳梨:金褐色菱格果皮 + 綠色葉冠(隨滾動旋轉)
+function drawPineappleBall(x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = 'rgba(20, 12, 0, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.12, r * 0.42, r * 0.95, r * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const body = ctx.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.15, 0, 0, r);
+  body.addColorStop(0, '#f2b53a');
+  body.addColorStop(0.55, '#c98a20');
+  body.addColorStop(1, '#8a5d1d');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  // 菱格紋 + 葉冠(隨滾動旋轉)
+  ctx.save();
+  ctx.rotate(game.ballRot);
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.98, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(110, 70, 15, 0.5)';
+  ctx.lineWidth = Math.max(1, r * 0.07);
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-r + i * r * 0.55, -r);
+    ctx.lineTo(r + i * r * 0.55, r);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(r + i * r * 0.55, -r);
+    ctx.lineTo(-r + i * r * 0.55, r);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.rotate(game.ballRot);
+  ctx.fillStyle = '#4f7d2a';
+  for (let i = -1; i <= 1; i++) {
+    ctx.save();
+    ctx.rotate(i * 0.45);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.12, -r * 0.72);
+    ctx.lineTo(0, -r * 1.35);
+    ctx.lineTo(r * 0.12, -r * 0.72);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  // 高光(固定光源)
+  ctx.fillStyle = 'rgba(255, 240, 200, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.35, -r * 0.42, r * 0.28, r * 0.15, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// 花朵收集物(顏色依主題:百香果花 / 蘋果花 / 鳳梨花)
+function drawFlower(x, y, r, t, colors) {
+  const c = colors || { petal: 'rgba(250, 246, 255, 0.95)', fringe: '#7b3fa0', center: '#ffd23e' };
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(Math.sin(t * 1.5 + x) * 0.12);
@@ -1067,7 +1313,7 @@ function drawFlower(x, y, r, t) {
   ctx.beginPath();
   ctx.arc(0, 0, r * 3, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = 'rgba(250, 246, 255, 0.95)';
+  ctx.fillStyle = c.petal;
   for (let i = 0; i < 6; i++) {
     ctx.save();
     ctx.rotate((i / 6) * Math.PI * 2);
@@ -1076,7 +1322,7 @@ function drawFlower(x, y, r, t) {
     ctx.fill();
     ctx.restore();
   }
-  ctx.strokeStyle = '#7b3fa0';
+  ctx.strokeStyle = c.fringe;
   ctx.lineWidth = Math.max(1, r * 0.12);
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2 + t * 0.5;
@@ -1085,7 +1331,7 @@ function drawFlower(x, y, r, t) {
     ctx.lineTo(Math.cos(a) * r * 0.95, Math.sin(a) * r * 0.95);
     ctx.stroke();
   }
-  ctx.fillStyle = '#ffd23e';
+  ctx.fillStyle = c.center;
   ctx.beginPath();
   ctx.arc(0, 0, r * 0.34, 0, Math.PI * 2);
   ctx.fill();

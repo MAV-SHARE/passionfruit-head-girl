@@ -1,5 +1,5 @@
-/* 百香果頭女孩 — Service Worker(離線快取) */
-const CACHE = 'pfhg-v5';
+/* 百香果頭女孩 — Service Worker(離線快取 + 版本更新) */
+const CACHE = 'pfhg-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -13,7 +13,13 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // 只預先快取,不主動接管:等頁面按下「立即更新」再切換,避免遊戲中被中斷
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+});
+
+// 頁面按下「立即更新」→ 通知新 SW 接管(觸發 controllerchange → 頁面 reload)
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {

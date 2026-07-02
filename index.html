@@ -32,6 +32,12 @@
 </div>
 <div id="toast" class="hidden"></div>
 
+<!-- 新版本更新橫幅 -->
+<div id="update-banner" class="hidden">
+  <span>🎉 發現新版本</span>
+  <button id="btn-update">立即更新</button>
+</div>
+
 <!-- 開始畫面 -->
 <div id="screen-start" class="overlay">
   <div class="panel">
@@ -191,6 +197,8 @@
       <span>主題</span>
       <select id="set-theme">
         <option value="passion">百香果果園</option>
+        <option value="apple">蘋果果園(會滾彎)</option>
+        <option value="pineapple">鳳梨田(超難滾)</option>
         <option value="nebula">星雲能量球</option>
       </select>
     </label>
@@ -213,8 +221,44 @@
 
 <script src="js/game.js"></script>
 <script>
+// Service Worker 註冊 + 自動偵測新版本
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('sw.js');
+
+      function promptUpdate(worker) {
+        const banner = document.getElementById('update-banner');
+        banner.classList.remove('hidden');
+        document.getElementById('btn-update').onclick = () => {
+          banner.classList.add('hidden');
+          worker.postMessage({ type: 'SKIP_WAITING' });
+        };
+      }
+      // 已有等待中的新版本(上次載入時裝好的)
+      if (reg.waiting && navigator.serviceWorker.controller) promptUpdate(reg.waiting);
+      // 背景下載到新版本
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) promptUpdate(nw);
+        });
+      });
+      // 新 SW 接管後重新載入,套用新版
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloaded) return;
+        reloaded = true;
+        location.reload();
+      });
+      // 定期 + 回到前景時檢查更新
+      setInterval(() => reg.update(), 30 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) reg.update();
+      });
+    } catch { /* SW 註冊失敗不影響遊戲 */ }
+  });
 }
 </script>
 </body>

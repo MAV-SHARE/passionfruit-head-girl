@@ -19,6 +19,45 @@ body.theme-passion {
   --gold: #ffd66e;
   --text: #ffedd8;
   --dim: #c9a789;
+  --accent1: #ffb52e;
+  --accent2: #e0608a;
+  --btn-grad: linear-gradient(90deg, #ffb52e, #ff8a3c);
+  --ovl: rgba(90, 45, 20, 0.5);
+  --ovl-dark: rgba(20, 9, 3, 0.92);
+}
+
+/* 蘋果主題 */
+body.theme-apple {
+  --bg: #0e1305;
+  --panel: rgba(34, 42, 18, 0.85);
+  --line: rgba(210, 235, 150, 0.22);
+  --cyan: #ff6b5c;
+  --magenta: #8cc455;
+  --gold: #ffd66e;
+  --text: #f2ffe3;
+  --dim: #b7c9a0;
+  --accent1: #ff6b5c;
+  --accent2: #8cc455;
+  --btn-grad: linear-gradient(90deg, #ff6b5c, #e0413f);
+  --ovl: rgba(60, 80, 25, 0.5);
+  --ovl-dark: rgba(10, 14, 3, 0.92);
+}
+
+/* 鳳梨主題 */
+body.theme-pineapple {
+  --bg: #171004;
+  --panel: rgba(52, 38, 13, 0.85);
+  --line: rgba(255, 210, 90, 0.25);
+  --cyan: #ffd23e;
+  --magenta: #ff9d2e;
+  --gold: #ffd66e;
+  --text: #fff3d6;
+  --dim: #cdb489;
+  --accent1: #ffd23e;
+  --accent2: #ff9d2e;
+  --btn-grad: linear-gradient(90deg, #ffd23e, #ff9d2e);
+  --ovl: rgba(95, 65, 15, 0.5);
+  --ovl-dark: rgba(18, 12, 3, 0.92);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -103,6 +142,39 @@ html, body {
   from { opacity: 0; transform: translateX(-50%) translateY(10px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
+
+/* ---------- 新版本更新橫幅 ---------- */
+#update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 10px 12px 10px 20px;
+  font-size: 14px;
+  z-index: 50;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  animation: toast-pop 0.3s ease-out;
+}
+#update-banner button {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #041018;
+  background: var(--btn-grad, linear-gradient(90deg, var(--cyan), #6ea8ff));
+  cursor: pointer;
+}
+#update-banner button:active { transform: scale(0.95); }
 
 /* ---------- 覆蓋層 ---------- */
 .overlay {
@@ -332,19 +404,27 @@ body.theme-passion #clear-mascot { display: block; }
   font-size: 15px;
 }
 
-/* ---------- 百香果主題外觀覆蓋 ---------- */
-body.theme-passion .overlay {
-  background: radial-gradient(ellipse at 50% 30%, rgba(90, 45, 20, 0.5), rgba(20, 9, 3, 0.92) 70%);
+/* ---------- 水果主題共用外觀覆蓋 ---------- */
+body[class^="theme-"] .overlay {
+  background: radial-gradient(ellipse at 50% 30%, var(--ovl), var(--ovl-dark) 70%);
 }
-body.theme-passion .panel {
-  box-shadow: 0 0 60px rgba(255, 170, 60, 0.12), 0 0 120px rgba(190, 70, 120, 0.08);
+body[class^="theme-"] .panel {
+  box-shadow: 0 0 60px rgba(255, 190, 90, 0.1), 0 0 120px rgba(150, 90, 60, 0.08);
 }
-body.theme-passion .panel h1 {
-  background: linear-gradient(90deg, #ffb52e, #e0608a);
+body[class^="theme-"] .panel h1 {
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+body[class^="theme-"] .btn-primary {
+  color: #2a1000;
+  background: var(--btn-grad);
+  box-shadow: 0 0 22px rgba(255, 180, 70, 0.4);
+}
+body[class^="theme-"] .hud-btn { color: var(--accent1); }
+
+/* 開始畫面 Logo:各水果造型 */
 body.theme-passion .logo-orb {
   background:
     radial-gradient(circle at 62% 68%, rgba(230, 170, 140, 0.35) 0 6%, transparent 7%),
@@ -353,9 +433,14 @@ body.theme-passion .logo-orb {
     radial-gradient(circle at 35% 30%, #a34866, #6d1f42 55%, #3c0e24 85%);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 40px rgba(255, 150, 60, 0.25);
 }
-body.theme-passion .btn-primary {
-  color: #2a1000;
-  background: linear-gradient(90deg, #ffb52e, #ff8a3c);
-  box-shadow: 0 0 22px rgba(255, 160, 50, 0.4);
+body.theme-apple .logo-orb {
+  background: radial-gradient(circle at 35% 30%, #ff8a70, #d92f2f 55%, #8e1420 85%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 40px rgba(255, 100, 80, 0.3);
 }
-body.theme-passion .hud-btn { color: #ffb52e; }
+body.theme-pineapple .logo-orb {
+  background:
+    repeating-linear-gradient(45deg, transparent 0 6px, rgba(110, 70, 15, 0.35) 6px 8px),
+    repeating-linear-gradient(-45deg, transparent 0 6px, rgba(110, 70, 15, 0.35) 6px 8px),
+    radial-gradient(circle at 35% 30%, #f2b53a, #c98a20 55%, #8a5d1d 85%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 40px rgba(255, 200, 60, 0.3);
+}
