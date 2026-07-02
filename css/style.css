@@ -260,6 +260,57 @@ body.theme-passion #clear-mascot { display: block; }
 }
 .clear-grid .label { color: var(--dim); }
 
+/* ---------- 水平校準 ---------- */
+.level-gauge {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  margin: 18px auto 10px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background:
+    linear-gradient(var(--line), var(--line)) center / 1px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat,
+    radial-gradient(circle, rgba(255, 255, 255, 0.05), transparent 70%);
+}
+.level-gauge::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 36px; height: 36px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px dashed var(--cyan);
+  opacity: 0.75;
+}
+#level-bubble {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 26px; height: 26px;
+  margin: -13px 0 0 -13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, var(--cyan));
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+  transition: transform 0.08s linear;
+}
+#level-bubble.ok {
+  background: radial-gradient(circle at 35% 30%, #fff, #4ade80);
+  box-shadow: 0 0 14px rgba(74, 222, 128, 0.6);
+}
+.level-status {
+  min-height: 20px;
+  font-size: 14px;
+  color: var(--dim);
+  margin-bottom: 10px;
+}
+.level-status.ok { color: #4ade80; }
+.btn-primary:disabled {
+  opacity: 0.35;
+  box-shadow: none;
+  cursor: default;
+}
+.btn-primary:disabled:active { transform: none; }
+
 /* ---------- 設定 ---------- */
 .setting-row {
   display: flex;

@@ -153,11 +153,82 @@ function onOrientation(e) {
   input.tiltY = clamp((y - input.zeroBeta) / MAX_TILT_DEG, -1, 1);
 }
 
-function calibrate() {
-  input.zeroGamma = input.rawGamma;
-  input.zeroBeta = input.rawBeta;
-  toast('已校準 ✓ 現在的握持角度為水平');
+/* ---------- 水平校準(把手機平放在桌面,以該平面為傾斜零點) ---------- */
+const LEVEL_FLAT_DEG = 4;      // 視為水平的角度容差
+const LEVEL_STABLE_MS = 600;   // 需要穩定維持的時間
+let levelTimer = null;
+let levelFrom = 'start';       // start | game
+let levelFlatSince = 0;        // 開始持續水平的時間戳
+let levelOpenedAt = 0;
+
+function openLevelCalibration(from) {
+  levelFrom = from;
+  if (game.state === 'play') game.state = 'paused';
+  levelFlatSince = 0;
+  levelOpenedAt = performance.now();
+  $('btn-level-confirm').disabled = true;
+  const status = $('level-status');
+  status.textContent = '偵測中…';
+  status.classList.remove('ok');
+  $('level-bubble').classList.remove('ok');
+  show('screen-level');
+  clearInterval(levelTimer);
+  levelTimer = setInterval(updateLevelGauge, 50);
+}
+
+function updateLevelGauge() {
+  const bubble = $('level-bubble');
+  const status = $('level-status');
+  const btn = $('btn-level-confirm');
+  const now = performance.now();
+
+  if (!input.hasSensor) {
+    // 沒有感應器(或尚未收到資料):等 2 秒後放行
+    if (now - levelOpenedAt > 2000) {
+      status.textContent = '未偵測到傾斜感應器,可直接開始';
+      btn.disabled = false;
+    }
+    return;
+  }
+  const gx = input.rawGamma, gy = input.rawBeta;
+  // 氣泡位置(±30° 對應量表半徑)
+  const ox = clamp(gx / 30, -1, 1) * 46;
+  const oy = clamp(gy / 30, -1, 1) * 46;
+  bubble.style.transform = `translate(${ox}px, ${oy}px)`;
+
+  const flat = Math.abs(gx) < LEVEL_FLAT_DEG && Math.abs(gy) < LEVEL_FLAT_DEG;
+  if (flat) {
+    if (!levelFlatSince) levelFlatSince = now;
+    if (now - levelFlatSince >= LEVEL_STABLE_MS) {
+      status.textContent = '已偵測到水平 ✓ 請點選確認';
+      status.classList.add('ok');
+      bubble.classList.add('ok');
+      btn.disabled = false;
+    } else {
+      status.textContent = '保持不動…';
+    }
+  } else {
+    levelFlatSince = 0;
+    const deg = Math.max(Math.abs(gx), Math.abs(gy)).toFixed(0);
+    status.textContent = `目前傾斜約 ${deg}° — 請平放在桌面上`;
+    status.classList.remove('ok');
+    bubble.classList.remove('ok');
+    btn.disabled = true;
+  }
+}
+
+function closeLevelCalibration(doCalibrate) {
+  clearInterval(levelTimer);
+  levelTimer = null;
+  if (doCalibrate && input.hasSensor) {
+    input.zeroGamma = input.rawGamma;
+    input.zeroBeta = input.rawBeta;
+    toast('已校準 ✓ 之後以此角度為基準');
+  }
+  hide('screen-level');
   sfx.click();
+  if (levelFrom === 'start') beginPlay();
+  else { game.state = 'play'; lastT = 0; }
 }
 
 async function requestSensor() {
@@ -170,8 +241,6 @@ async function requestSensor() {
     } catch { /* 非 iOS 或已拒絕 */ }
   }
   window.addEventListener('deviceorientation', onOrientation);
-  // 稍後自動校準第一筆讀值
-  setTimeout(() => { if (input.hasSensor) calibrate(); }, 600);
 }
 
 // 鍵盤(桌面)
@@ -1120,9 +1189,19 @@ function startGame() {
   requestSensor();
   enterFullscreen();
   hide('screen-start');
+  // 觸控裝置:先請玩家把手機平放校準,再開始
+  if ('ontouchstart' in window && typeof DeviceOrientationEvent !== 'undefined') {
+    openLevelCalibration('start');
+  } else {
+    beginPlay();
+  }
+}
+
+function beginPlay() {
   show('hud');
   buildLevel(game.level);
   game.state = 'play';
+  lastT = 0;
   if (game.level === 1) toast(theme().startToast);
 }
 
@@ -1138,9 +1217,11 @@ function updateBestLine() {
 
 $('btn-start').addEventListener('click', startGame);
 $('btn-calibrate').addEventListener('click', () => {
-  if (input.hasSensor) calibrate();
+  if (input.hasSensor) openLevelCalibration('game');
   else toast('未偵測到感應器(電腦請用方向鍵或拖曳)');
 });
+$('btn-level-confirm').addEventListener('click', () => closeLevelCalibration(true));
+$('btn-level-skip').addEventListener('click', () => closeLevelCalibration(true));
 $('btn-next').addEventListener('click', () => {
   sfx.click();
   game.level++;
@@ -1218,7 +1299,9 @@ window.addEventListener('resize', () => {
 // 背景分頁時暫停計時
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && game.state === 'play') game.state = 'paused';
-  else if (!document.hidden && game.state === 'paused' && $('screen-settings').classList.contains('hidden')) {
+  else if (!document.hidden && game.state === 'paused' &&
+           $('screen-settings').classList.contains('hidden') &&
+           $('screen-level').classList.contains('hidden')) {
     game.state = 'play';
     lastT = 0;
   }
@@ -1242,6 +1325,6 @@ if (!('ontouchstart' in window)) {
 requestAnimationFrame(loop);
 
 // 除錯掛鉤(開發工具檢視內部狀態用,不影響遊戲)
-window.__nebula = { game, input, getTilt, physicsStep, draw, buildLevel, checkPickups };
+window.__nebula = { game, input, getTilt, physicsStep, draw, buildLevel, checkPickups, openLevelCalibration, updateLevelGauge, closeLevelCalibration };
 
 })();
