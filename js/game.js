@@ -6,7 +6,7 @@
 'use strict';
 
 // 版本號(與 sw.js 的 CACHE 版本同步:v1.X.0 ↔ pfhg-vX)
-const APP_VERSION = '1.10.1';
+const APP_VERSION = '1.11.0';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -180,6 +180,8 @@ const sfx = (() => {
     goal() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'sine', 0.22), i * 90)); },
     fall() { tone(300, 0.6, 'sawtooth', 0.18, 0.15); },
     click() { tone(600, 0.05, 'square', 0.08); },
+    // 鋼珠撞軌道的金屬清脆聲
+    ting(strength) { tone(900 + strength * 700, 0.045, 'triangle', clamp(strength * 0.3, 0.03, 0.2), 0.8); },
   };
 })();
 
@@ -414,6 +416,13 @@ const game = {
   pathCells: null,      // 獨木橋:棧道格子
   pathPoints: null,     // 獨木橋:棧道像素折線
   pathWidth: 0,
+  railNorm: null,       // 滾珠軌道:正規化取樣點 {u,v,turn}
+  railPoints: null,     // 滾珠軌道:像素取樣點
+  railGapMask: null,    // 滾珠軌道:缺口遮罩(依取樣索引)
+  railStarIdx: null,    // 滾珠軌道:檢查點所在取樣索引
+  railHalfGap: 0,       // 軌道內半寬(球心可偏移量)
+  railNear: 0,          // 最近取樣點快取(視窗化搜尋)
+  railRespawnIdx: 0,    // 掉落後的重生取樣索引
   cols: 0, rows: 0,
   cellSize: 0, offX: 0, offY: 0, wallT: 0,
   walls: [],            // 碰撞矩形
@@ -464,6 +473,10 @@ const SERIES = [
     desc: '經典迷宮,收集花朵抵達漩渦', diff: 1 },
   { id: 'board', name: '老街彈珠台', icon: '🎯', theme: 'passion', stage: 'board',
     desc: '坑洞板上依序闖過 ①②③', diff: 3 },
+  { id: 'rail', name: '滾珠珠機台', icon: '🎢', theme: 'passion', stage: 'rail',
+    desc: '沿黃銅軌道滾鋼珠,小心缺口!', diff: 2,
+    // 鋼珠物理:好推、滑(低阻力)、撞軌道彈性高
+    phys: { accel: 2500, friction: 1.2, restitution: 0.45, maxSpeed: 900, wobble: 0, squash: false } },
   { id: 'apple', name: '蘋果果園', icon: '🍎', theme: 'apple', stage: 'maze',
     desc: '蘋果會滾出弧線,不走直線', diff: 3 },
   { id: 'bridge', name: '高空獨木橋', icon: '🌉', theme: 'nebula', stage: 'path',
@@ -521,6 +534,7 @@ function buildLevel(index) {
   gridSize(game.diff);
   if (game.stage === 'maze') buildMazeStage(game.diff, seed);
   else if (game.stage === 'board') buildBoardStage(game.diff, seed);
+  else if (game.stage === 'rail') buildRailStage(game.diff, seed);
   else buildPathStage(game.diff, seed);
 
   game.stars = [];
@@ -534,6 +548,7 @@ function buildLevel(index) {
   updateHUD();
   if (game.stage === 'board') toast('依序通過 ①②③ 再進終點!');
   else if (game.stage === 'path') toast('沿著棧道走,別掉下去!');
+  else if (game.stage === 'rail') toast('沿軌道滾到終點杯!經過缺口要走穩!');
   else if (index === 1) toast(theme().startToast);
 }
 
@@ -568,6 +583,78 @@ function buildBoardStage(lv, seed) {
   game.starCells = cpRows.map(r => ({ x: channel[r], y: r }));
   game.startCell = { x: channel[rows - 1], y: rows - 1 };
   game.goalCell = { x: channel[0], y: 0 };
+}
+
+/* 老街滾珠珠機台:黃銅雙軌道蛇行來回,鋼珠被軌道夾住,
+   但軌道上有缺口 — 經過缺口時偏離中線就會掉出去 */
+function buildRailStage(lv, seed) {
+  const rng = mulberry32(seed + 77777);
+  game.maze = null;
+  game.pathCells = null;
+  game.holeCells = [];
+  game.starCells = [];               // rail 不用格子座標(改用取樣索引)
+  game.startCell = { x: 0, y: 0 };
+  game.goalCell = { x: 0, y: 0 };
+
+  // 蛇行軌道:數條水平直道 + 兩端 180° U 型彎(正規化座標 0..1)
+  const runs = clamp(3 + Math.floor(lv / 3), 3, 6);
+  const waveAmp = Math.min(0.35, lv * 0.05);          // 直道的波浪起伏(相對車道間距)
+  const uL = 0.14, uR = 0.86;                          // 直道左右邊界
+  const vTop = 0.08, vBot = 0.92;
+  const laneGap = (vBot - vTop) / (runs - 1);
+  const pts = [];
+  for (let i = 0; i < runs; i++) {
+    const v0 = vBot - i * laneGap;
+    const leftToRight = i % 2 === 0;
+    const N = 34;
+    const phase = rng() * Math.PI * 2;
+    const waves = 1.5 + rng() * 1.5;
+    for (let k = 0; k <= N; k++) {
+      const t2 = k / N;
+      const u = leftToRight ? uL + (uR - uL) * t2 : uR - (uR - uL) * t2;
+      const v = v0 + Math.sin(t2 * Math.PI * 2 * waves + phase) * waveAmp * laneGap * Math.sin(Math.PI * t2);
+      pts.push({ u, v, turn: false });
+    }
+    // U 型彎接到下一條直道
+    if (i < runs - 1) {
+      const cu = leftToRight ? uR : uL;             // 彎道圓心 u(在端點外側轉)
+      const cv = v0 - laneGap / 2;
+      const R = laneGap / 2;
+      const M = 14;
+      for (let k = 1; k < M; k++) {
+        const a = (k / M) * Math.PI;
+        const dir = leftToRight ? 1 : -1;
+        pts.push({ u: cu + Math.sin(a) * R * 0.55 * dir, v: cv + Math.cos(a) * R, turn: true });
+      }
+    }
+  }
+  game.railNorm = pts;
+
+  // 缺口:只開在直道上,避開頭尾與彼此
+  const nGaps = clamp(1 + Math.floor(lv / 2), 1, 6);
+  const gapLen = 5;                                   // 取樣點數(約 1.5~2 顆球長)
+  const mask = new Array(pts.length).fill(false);
+  const taken = [];
+  let tries = 0;
+  while (taken.length < nGaps && tries++ < 200) {
+    const s = 20 + Math.floor(rng() * (pts.length - 40));
+    let ok = true;
+    for (let k = s - 4; k < s + gapLen + 4; k++) if (pts[k].turn) { ok = false; break; }
+    if (ok && taken.every(t2 => Math.abs(t2 - s) > 22)) {
+      taken.push(s);
+      for (let k = s; k < s + gapLen; k++) mask[k] = true;
+    }
+  }
+  game.railGapMask = mask;
+
+  // 檢查點:約 25% / 50% / 75% 處(避開缺口與彎道)
+  game.railStarIdx = [0.25, 0.5, 0.75].map(f => {
+    let i = Math.floor(pts.length * f);
+    while (i < pts.length - 5 && (mask[i] || pts[i].turn)) i++;
+    return i;
+  });
+  game.railRespawnIdx = 0;
+  game.railNear = 0;
 }
 
 // 高空獨木橋:無牆棧道,離開路面就摔落
@@ -685,14 +772,34 @@ function layout() {
     game.pathPoints = null;
   }
 
+  // 滾珠軌道:正規化取樣點 → 像素;終點與檢查點放在軌道上
+  if (game.stage === 'rail') {
+    const bw = game.cols * game.cellSize, bh = game.rows * game.cellSize;
+    game.railPoints = game.railNorm.map(p => ({
+      x: game.offX + p.u * bw,
+      y: game.offY + p.v * bh,
+    }));
+    game.ball.r = Math.min(game.ball.r, game.cellSize * 0.26);
+    game.railHalfGap = game.ball.r * 1.18;     // 軌道內緣比球稍寬
+    const last = game.railPoints[game.railPoints.length - 1];
+    game.goal = { x: last.x, y: last.y, r: game.cellSize * 0.34 };
+    game.stars = game.railStarIdx.map((i, k) => ({
+      ...game.railPoints[i],
+      got: game.stars[k] ? game.stars[k].got : false,
+    }));
+    game.holes = [];
+  } else {
+    game.railPoints = null;
+  }
+
   buildWallRects();
   renderMazeLayer();
 }
 
 function buildWallRects() {
   const { cols, rows, cellSize: s, offX, offY, wallT: t } = game;
-  // 獨木橋:完全無牆(靠掉落判定)
-  if (game.stage === 'path') { game.walls = []; return; }
+  // 獨木橋/滾珠軌道:完全無牆(靠掉落/軌道約束判定)
+  if (game.stage === 'path' || game.stage === 'rail') { game.walls = []; return; }
   const half = t / 2;
   const rects = [];
   const px = x => offX + x * s;
@@ -717,8 +824,15 @@ function buildWallRects() {
 
 function resetBall() {
   const b = game.ball;
-  b.x = game.offX + (game.startCell.x + 0.5) * game.cellSize;
-  b.y = game.offY + (game.startCell.y + 0.5) * game.cellSize;
+  if (game.stage === 'rail' && game.railPoints) {
+    // 滾珠軌道:從最後通過的檢查點重生
+    const p = game.railPoints[game.railRespawnIdx] || game.railPoints[0];
+    b.x = p.x; b.y = p.y;
+    game.railNear = game.railRespawnIdx;
+  } else {
+    b.x = game.offX + (game.startCell.x + 0.5) * game.cellSize;
+    b.y = game.offY + (game.startCell.y + 0.5) * game.cellSize;
+  }
   b.vx = 0; b.vy = 0;
 }
 
@@ -743,7 +857,7 @@ function renderMazeLayer() {
     grad.addColorStop(0, 'rgba(24, 30, 66, 0.9)');
     grad.addColorStop(1, 'rgba(8, 10, 24, 0.9)');
   }
-  const noFloor = game.stage === 'path';   // 獨木橋:沒有地板,只有懸空棧道
+  const noFloor = game.stage === 'path' || game.stage === 'rail';   // 獨木橋/滾珠軌道:不畫一般地板
   if (!noFloor) {
     fc.fillStyle = grad;
     fc.fillRect(fx, fy, fw, fh);
@@ -845,8 +959,87 @@ function renderMazeLayer() {
     }
   }
 
+  // 老街滾珠珠機台:木箱背景 + 黃銅雙軌道
+  if (game.stage === 'rail' && game.railPoints) {
+    // 木箱底板(直木紋)
+    const wood = fc.createLinearGradient(0, 0, w, 0);
+    wood.addColorStop(0, '#6b4a24');
+    wood.addColorStop(0.5, '#8a6234');
+    wood.addColorStop(1, '#63431f');
+    fc.fillStyle = wood;
+    fc.fillRect(0, 0, w, h);
+    const plank = Math.max(48, w / 7);
+    for (let x0 = plank; x0 < w; x0 += plank) {
+      fc.strokeStyle = 'rgba(40, 22, 6, 0.45)';
+      fc.lineWidth = 2;
+      fc.beginPath(); fc.moveTo(x0, 0); fc.lineTo(x0, h); fc.stroke();
+      fc.strokeStyle = 'rgba(255, 220, 160, 0.06)';
+      fc.lineWidth = 6;
+      fc.beginPath(); fc.moveTo(x0 - plank * 0.4, 0); fc.lineTo(x0 - plank * 0.4, h); fc.stroke();
+    }
+
+    const pts = game.railPoints;
+    const mask = game.railGapMask;
+    const tube = Math.max(3.5, game.ball.r * 0.42);          // 軌道管粗細
+    const railOff = game.railHalfGap + tube * 0.5;           // 管中心離軌道中線
+    // 法線
+    const normals = pts.map((p, i) => {
+      const a = pts[Math.max(0, i - 1)], b2 = pts[Math.min(pts.length - 1, i + 1)];
+      const dx2 = b2.x - a.x, dy2 = b2.y - a.y;
+      const L = Math.hypot(dx2, dy2) || 1;
+      return { x: -dy2 / L, y: dx2 / L };
+    });
+    // 軌道下方陰影(整條)
+    fc.lineCap = 'round'; fc.lineJoin = 'round';
+    fc.strokeStyle = 'rgba(30, 15, 2, 0.35)';
+    fc.lineWidth = (game.railHalfGap + tube) * 2 + 4;
+    fc.beginPath();
+    fc.moveTo(pts[0].x + 2, pts[0].y + 4);
+    for (let i = 1; i < pts.length; i++) fc.lineTo(pts[i].x + 2, pts[i].y + 4);
+    fc.stroke();
+    // 兩條黃銅管(缺口處斷開)
+    const strokeRail = (side, color, width) => {
+      fc.strokeStyle = color;
+      fc.lineWidth = width;
+      fc.beginPath();
+      let pen = false;
+      for (let i = 0; i < pts.length; i++) {
+        if (mask[i]) { pen = false; continue; }
+        const x0 = pts[i].x + normals[i].x * railOff * side;
+        const y0 = pts[i].y + normals[i].y * railOff * side;
+        if (!pen) { fc.moveTo(x0, y0); pen = true; }
+        else fc.lineTo(x0, y0);
+      }
+      fc.stroke();
+    };
+    for (const side of [-1, 1]) {
+      strokeRail(side, '#6e4d10', tube * 2 + 2);      // 外緣暗邊
+      strokeRail(side, '#c9992e', tube * 2);          // 黃銅本體
+      strokeRail(side, '#ffe08a', tube * 0.8);        // 高光
+    }
+    // 缺口端點紅色警示 + 端帽
+    for (let i = 1; i < pts.length; i++) {
+      const edge = mask[i] !== mask[i - 1];
+      if (!edge) continue;
+      const j = mask[i] ? i - 1 : i;
+      for (const side of [-1, 1]) {
+        const x0 = pts[j].x + normals[j].x * railOff * side;
+        const y0 = pts[j].y + normals[j].y * railOff * side;
+        fc.fillStyle = '#8a6a1f';
+        fc.beginPath(); fc.arc(x0, y0, tube * 1.15, 0, Math.PI * 2); fc.fill();
+        fc.fillStyle = '#e04a3a';
+        fc.beginPath(); fc.arc(x0, y0, tube * 0.55, 0, Math.PI * 2); fc.fill();
+      }
+    }
+    // 起點座
+    fc.fillStyle = 'rgba(60, 40, 10, 0.8)';
+    fc.beginPath(); fc.arc(pts[0].x, pts[0].y, game.ball.r * 1.6, 0, Math.PI * 2); fc.fill();
+    fc.strokeStyle = '#c9992e'; fc.lineWidth = 2.5;
+    fc.beginPath(); fc.arc(pts[0].x, pts[0].y, game.ball.r * 1.6, 0, Math.PI * 2); fc.stroke();
+  }
+
   // 高空獨木橋:懸空棧道(周圍是深淵)
-  if (noFloor && game.pathPoints) {
+  if (game.stage === 'path' && game.pathPoints) {
     const pts = game.pathPoints;
     fc.lineCap = 'round';
     fc.lineJoin = 'round';
@@ -975,12 +1168,60 @@ function physicsStep(dt) {
     b.x += (b.vx * dt) / steps;
     b.y += (b.vy * dt) / steps;
     collideWalls();
+    if (game.stage === 'rail' && game.state === 'play') railConstrain(scale, ph);
   }
 
   // 獨木橋:球心越過棧道邊緣才摔落(允許半顆球懸空,較符合直覺)
   if (game.stage === 'path' && game.state === 'play' &&
       distToPath(b.x, b.y) > game.pathWidth / 2) {
     startFall({ x: b.x, y: b.y, r: b.r });
+  }
+}
+
+/* 滾珠軌道約束:找最近軌道點,超出內半寬時 —
+   一般路段被軌道彈回(金屬聲);缺口路段偏太多就掉出去 */
+function railConstrain(scale, ph) {
+  const b = game.ball;
+  const pts = game.railPoints;
+  if (!pts) return;
+  // 視窗化最近點搜尋(軌道蛇行,不能全域找,會跳到相鄰車道)
+  const W = 26;
+  let i0 = clamp(game.railNear - W, 0, pts.length - 2);
+  let i1 = clamp(game.railNear + W, 0, pts.length - 2);
+  let best = Infinity, bi = game.railNear, bx = b.x, by = b.y;
+  for (let i = i0; i <= i1; i++) {
+    const ax = pts[i].x, ay = pts[i].y;
+    const dx2 = pts[i + 1].x - ax, dy2 = pts[i + 1].y - ay;
+    const L2 = dx2 * dx2 + dy2 * dy2 || 1;
+    const tt = clamp(((b.x - ax) * dx2 + (b.y - ay) * dy2) / L2, 0, 1);
+    const qx = ax + dx2 * tt, qy = ay + dy2 * tt;
+    const d2 = dist2(b.x, b.y, qx, qy);
+    if (d2 < best) { best = d2; bi = i; bx = qx; by = qy; }
+  }
+  game.railNear = bi;
+  const d = Math.sqrt(best);
+  const half = game.railHalfGap;
+  if (d <= half) return;
+  const inGap = game.railGapMask[bi] || game.railGapMask[Math.min(bi + 1, pts.length - 1)];
+  if (inGap) {
+    // 缺口:偏出超過半顆球 → 掉出軌道
+    if (d > half + b.r * 0.7) startFall({ x: b.x, y: b.y, r: b.r });
+    return;
+  }
+  // 被軌道擋回(橫向反彈)
+  const nx = (b.x - bx) / d, ny = (b.y - by) / d;
+  b.x = bx + nx * half;
+  b.y = by + ny * half;
+  const vn = b.vx * nx + b.vy * ny;
+  if (vn > 0) {
+    b.vx -= (1 + ph.restitution) * vn * nx;
+    b.vy -= (1 + ph.restitution) * vn * ny;
+    if (vn > 150 * scale) {
+      const s = clamp(vn / (700 * scale), 0, 1);
+      sfx.ting(s);
+      buzz(Math.round(5 + s * 12));
+      spawnSparks(b.x, b.y, 2 + Math.round(s * 3));
+    }
   }
 }
 
@@ -1058,16 +1299,21 @@ function checkPickups() {
       else toast('全部通過!前往終點!');
     }
   } else {
-    for (const s of game.stars) {
+    game.stars.forEach((s, si) => {
       if (!s.got && dist2(b.x, b.y, s.x, s.y) < (b.r + game.cellSize * 0.2) ** 2) {
         s.got = true;
         game.starsGot++;
         sfx.star();
         buzz([15, 30, 15]);
         spawnBurst(s.x, s.y, '#ffd66e', 16);
+        // 滾珠軌道:通過檢查點後,掉落改從這裡重生
+        if (game.stage === 'rail' && game.railStarIdx) {
+          game.railRespawnIdx = Math.max(game.railRespawnIdx, game.railStarIdx[si]);
+          toast(`檢查點!掉落會從這裡繼續`);
+        }
         updateHUD();
       }
-    }
+    });
   }
   // 掉洞判定:彈珠台洞多,判定放寬一點(0.66)比較公平
   const killF = game.stage === 'board' ? 0.66 : 0.75;
@@ -1300,6 +1546,24 @@ function draw(now) {
       ctx.textBaseline = 'middle';
       ctx.fillText(done ? '✓' : String(i + 1), s.x, s.y + R * 0.05);
     });
+  } else if (game.stage === 'rail') {
+    // 滾珠軌道:金色軸承檢查點
+    for (const s of game.stars) {
+      if (s.got) continue;
+      const pulse = 1 + 0.12 * Math.sin(t * 4 + s.x);
+      const R = game.cellSize * 0.15 * pulse;
+      const glow = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, R * 2.6);
+      glow.addColorStop(0, 'rgba(255, 214, 110, 0.5)');
+      glow.addColorStop(1, 'rgba(255, 214, 110, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(s.x, s.y, R * 2.6, 0, Math.PI * 2); ctx.fill();
+      const body = ctx.createRadialGradient(s.x - R * 0.35, s.y - R * 0.35, R * 0.1, s.x, s.y, R);
+      body.addColorStop(0, '#fff3c4');
+      body.addColorStop(0.5, '#ffd23e');
+      body.addColorStop(1, '#b8860b');
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.arc(s.x, s.y, R, 0, Math.PI * 2); ctx.fill();
+    }
   } else {
     for (const s of game.stars) {
       if (s.got) continue;
@@ -1309,11 +1573,32 @@ function draw(now) {
     }
   }
 
-  // 終點:百香果=果汁漩渦;星雲=傳送門
+  // 終點:滾珠=銅杯;水果=果汁漩渦;星雲=傳送門
   {
     const g = game.goal;
     const pulse = 1 + 0.1 * Math.sin(t * 2.5);
-    if (style) {
+    if (game.stage === 'rail') {
+      const glow = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r * 1.7 * pulse);
+      glow.addColorStop(0, 'rgba(255, 214, 110, 0.55)');
+      glow.addColorStop(1, 'rgba(255, 214, 110, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(g.x, g.y, g.r * 1.7 * pulse, 0, Math.PI * 2); ctx.fill();
+      // 杯身
+      ctx.fillStyle = '#241203';
+      ctx.beginPath(); ctx.arc(g.x, g.y, g.r * 0.95, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = Math.max(3, g.r * 0.28);
+      ctx.strokeStyle = '#c9992e';
+      ctx.beginPath(); ctx.arc(g.x, g.y, g.r * 0.95, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = Math.max(1.5, g.r * 0.1);
+      ctx.strokeStyle = '#ffe08a';
+      ctx.beginPath(); ctx.arc(g.x, g.y, g.r * 1.06, 0, Math.PI * 2); ctx.stroke();
+      // 旋轉光點
+      const a = t * 2.2;
+      ctx.fillStyle = '#fff3c4';
+      ctx.beginPath();
+      ctx.arc(g.x + Math.cos(a) * g.r * 0.95, g.y + Math.sin(a) * g.r * 0.95, Math.max(1.5, g.r * 0.1), 0, Math.PI * 2);
+      ctx.fill();
+    } else if (style) {
       const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.r * 1.6 * pulse);
       grad.addColorStop(0, style.goal[0]);
       grad.addColorStop(0.35, style.goal[1]);
@@ -1350,9 +1635,9 @@ function draw(now) {
     }
   }
 
-  // 拖尾:水果=淡淡的滾痕;星雲=發光拖尾
-  const trailRGB = style ? style.trail : '120, 210, 255';
-  const trailA = style ? 0.18 : 0.35;
+  // 拖尾:鋼珠=銀灰;水果=淡淡的滾痕;星雲=發光拖尾
+  const trailRGB = game.stage === 'rail' ? '208, 218, 228' : (style ? style.trail : '120, 210, 255');
+  const trailA = game.stage === 'rail' ? 0.2 : (style ? 0.18 : 0.35);
   for (let i = 0; i < trail.length; i++) {
     const p = trail[i];
     const a = (i / trail.length) * trailA;
@@ -1405,6 +1690,7 @@ for (let i = 0; i < 14; i++) {
 
 function drawBall(x, y, r) {
   if (r <= 0.5) return;
+  if (game.stage === 'rail') { drawSteelBall(x, y, r); return; }
   const style = theme().style;
   if (style) {
     if (style.ball === 'passion') drawPassionBall(x, y, r);
@@ -1427,6 +1713,38 @@ function drawBall(x, y, r) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+}
+
+// 鋼珠(鉻銀金屬球)
+function drawSteelBall(x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  // 落影
+  ctx.fillStyle = 'rgba(20, 10, 0, 0.45)';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.1, r * 0.4, r * 0.95, r * 0.55, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 球體(鉻)
+  const body = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.1, 0, 0, r);
+  body.addColorStop(0, '#ffffff');
+  body.addColorStop(0.35, '#dfe5ec');
+  body.addColorStop(0.7, '#9aa4b0');
+  body.addColorStop(1, '#5a636e');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  // 環境反射(木箱暖色映在下半)
+  ctx.fillStyle = 'rgba(150, 105, 50, 0.28)';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.12, r * 0.45, r * 0.62, r * 0.3, 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  // 強高光
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.35, -r * 0.4, r * 0.22, r * 0.13, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawPassionBall(x, y, r) {
@@ -1666,7 +1984,9 @@ function loop(now) {
     if (game.fallAnim >= 0.9) {
       resetBall();
       trail.length = 0;
-      toast(game.stage === 'path' ? '從棧道上摔下去了!從起點重來' : theme().fallToast);
+      toast(game.stage === 'path' ? '從棧道上摔下去了!從起點重來'
+        : game.stage === 'rail' ? '鋼珠掉出軌道!從檢查點繼續'
+        : theme().fallToast);
       game.state = 'play';
     }
   }
@@ -1696,8 +2016,8 @@ function fmtTime(s) {
 function updateHUD() {
   const s = seriesById(game.series);
   $('hud-level').textContent = `${s.icon} ${game.levelIndex}/${SERIES_LEN}`;
-  $('hud-stars').textContent = game.stage === 'board'
-    ? `◎ ${game.starsGot}/3`
+  $('hud-stars').textContent = game.stage === 'board' ? `◎ ${game.starsGot}/3`
+    : game.stage === 'rail' ? `◉ ${game.starsGot}/3`
     : `${theme().icon} ${game.starsGot}/3`;
   $('hud-time').textContent = fmtTime(game.time);
 }
@@ -1770,7 +2090,9 @@ const ACHIEVEMENTS = [
   { icon: '✨', name: '摘星者', desc: '總星數達 30', test: () => totalStarsAll() >= 30 },
   { icon: '🌠', name: '星海霸主', desc: '總星數達 120', test: () => totalStarsAll() >= 120 },
   { icon: '💰', name: '分數大戶', desc: '累計總分達 20000', test: () => game.totalScore >= 20000 },
-  { icon: '👑', name: '全滿貫', desc: '六大系列全部通關', test: () => SERIES.every(s => clearedCount(s.id) >= SERIES_LEN) },
+  { icon: '👑', name: '全滿貫', desc: '所有系列全部通關', test: () => SERIES.every(s => clearedCount(s.id) >= SERIES_LEN) },
+  // 新成就一律往後加(achSeen 以索引記錄,插中間會錯位)
+  { icon: '🎢', name: '滾珠職人', desc: '滾珠珠機台 10 關全破', test: () => clearedCount('rail') >= SERIES_LEN },
 ];
 function unlockedAchievements() { return ACHIEVEMENTS.filter(a => a.test()); }
 
