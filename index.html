@@ -172,6 +172,25 @@
     </div>
     <button class="btn-primary" id="btn-next">下一關 ➜</button>
     <button class="btn-ghost" id="btn-replay">重玩本關</button>
+    <button class="btn-ghost" id="btn-clear-menu">關卡選單</button>
+  </div>
+</div>
+
+<!-- 系列選單(每系列 10 關) -->
+<div id="screen-series" class="overlay hidden">
+  <div class="panel">
+    <h2>選擇系列</h2>
+    <div id="series-list"></div>
+    <div class="best" id="series-total"></div>
+  </div>
+</div>
+
+<!-- 關卡選擇(1~10) -->
+<div id="screen-levels" class="overlay hidden">
+  <div class="panel">
+    <h2 id="levels-title">系列</h2>
+    <div id="level-grid"></div>
+    <button class="btn-ghost" id="btn-back-series">← 返回系列選單</button>
   </div>
 </div>
 
@@ -194,15 +213,6 @@
   <div class="panel">
     <h2>設定</h2>
     <label class="setting-row">
-      <span>主題</span>
-      <select id="set-theme">
-        <option value="passion">百香果果園</option>
-        <option value="apple">蘋果果園(會滾彎)</option>
-        <option value="pineapple">鳳梨田(超難滾)</option>
-        <option value="nebula">星雲能量球</option>
-      </select>
-    </label>
-    <label class="setting-row">
       <span>傾斜靈敏度</span>
       <input type="range" id="set-sensitivity" min="0.5" max="2" step="0.1" value="1">
     </label>
@@ -214,6 +224,7 @@
       <span>震動回饋</span>
       <input type="checkbox" id="set-vibrate" checked>
     </label>
+    <button class="btn-ghost" id="btn-exit-level">離開本關(回關卡選單)</button>
     <button class="btn-ghost" id="btn-reset-progress">重置進度</button>
     <button class="btn-primary" id="btn-close-settings">返回</button>
   </div>

@@ -332,6 +332,85 @@ body.theme-passion #clear-mascot { display: block; }
 }
 .clear-grid .label { color: var(--dim); }
 
+/* ---------- 系列 / 關卡選單 ---------- */
+#series-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 6px 0 14px;
+}
+.series-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.series-card:active { transform: scale(0.98); }
+.series-card.done { border-color: rgba(255, 214, 110, 0.55); }
+.s-icon { font-size: 28px; flex-shrink: 0; }
+.s-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.s-name { font-size: 15px; font-weight: 700; }
+.s-desc { font-size: 12px; color: var(--dim); }
+.s-bar {
+  height: 5px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.s-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent1, var(--cyan)), var(--accent2, var(--magenta)));
+}
+.s-prog {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--gold);
+  flex-shrink: 0;
+  line-height: 1.3;
+}
+.s-prog small { font-weight: 400; font-size: 11px; }
+
+#level-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 14px 0;
+}
+.level-cell {
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.level-cell:active:not(:disabled) { transform: scale(0.94); }
+.level-cell .lv-num { font-size: 18px; font-weight: 700; }
+.level-cell .lv-stars { font-size: 10px; color: var(--gold); min-height: 12px; letter-spacing: 1px; }
+.level-cell.cleared { border-color: rgba(255, 214, 110, 0.5); }
+.level-cell.current {
+  border-color: var(--accent1, var(--cyan));
+  box-shadow: 0 0 14px rgba(255, 200, 80, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+}
+.level-cell.locked { opacity: 0.35; cursor: default; }
+
 /* ---------- 水平校準 ---------- */
 .level-gauge {
   position: relative;

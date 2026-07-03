@@ -286,7 +286,7 @@ function closeLevelCalibration(doCalibrate) {
   }
   hide('screen-level');
   sfx.click();
-  if (levelFrom === 'start') beginPlay();
+  if (levelFrom === 'start') showSeries();
   else { game.state = 'play'; lastT = 0; }
 }
 
@@ -399,12 +399,17 @@ function bfsDistances(cells, sx, sy) {
 
 /* ---------- 遊戲狀態 ---------- */
 const game = {
-  state: 'menu',        // menu | play | clear | falling
-  level: store.get('level', 1),
+  state: 'menu',        // menu | play | paused | clear | falling
+  series: store.get('series', 'passion'),   // 目前系列
+  levelIndex: 1,        // 系列內第幾關(1..10)
+  diff: 1,              // 內部難度
+  stage: 'maze',        // maze | board | path
   totalScore: store.get('totalScore', 0),
-  bestLevel: store.get('bestLevel', 1),
   bestScore: store.get('bestScore', 0),
   maze: null,
+  pathCells: null,      // 獨木橋:棧道格子
+  pathPoints: null,     // 獨木橋:棧道像素折線
+  pathWidth: 0,
   cols: 0, rows: 0,
   cellSize: 0, offX: 0, offY: 0, wallT: 0,
   walls: [],            // 碰撞矩形
@@ -449,16 +454,144 @@ function levelParams(lv) {
   };
 }
 
-function buildLevel(lv) {
+/* ---------- 系列制關卡(每系列 10 關,一關一關解鎖) ---------- */
+const SERIES = [
+  { id: 'passion', name: '百香果果園', icon: '🥭', theme: 'passion', stage: 'maze',
+    desc: '經典迷宮,收集花朵抵達漩渦', diff: 1 },
+  { id: 'board', name: '老街彈珠台', icon: '🎯', theme: 'passion', stage: 'board',
+    desc: '坑洞板上依序闖過 ①②③', diff: 3 },
+  { id: 'apple', name: '蘋果果園', icon: '🍎', theme: 'apple', stage: 'maze',
+    desc: '蘋果會滾出弧線,不走直線', diff: 3 },
+  { id: 'bridge', name: '高空獨木橋', icon: '🌉', theme: 'nebula', stage: 'path',
+    desc: '懸空棧道,滾出邊緣就摔落', diff: 3 },
+  { id: 'pine', name: '鳳梨田', icon: '🍍', theme: 'pineapple', stage: 'maze',
+    desc: '超難滾的鳳梨,顛簸前進', diff: 4 },
+  { id: 'nebula', name: '星雲迷宮', icon: '🌌', theme: 'nebula', stage: 'maze',
+    desc: '高速能量球,考驗反應', diff: 5 },
+];
+const SERIES_LEN = 10;
+const seriesById = (id) => SERIES.find(s => s.id === id) || SERIES[0];
+
+// 進度:{ seriesId: { "1": 星數, "2": 星數, ... } }
+const progress = store.get('progress', {});
+function starsOf(id, idx) {
+  const p = progress[id];
+  const v = p && p[idx];
+  return typeof v === 'number' ? v : -1;          // -1 = 未通關
+}
+function clearedCount(id) {
+  let n = 0;
+  for (let i = 1; i <= SERIES_LEN; i++) if (starsOf(id, i) >= 0) n++;
+  return n;
+}
+function unlockedIndex(id) {                       // 目前可挑戰的最遠關卡
+  for (let i = 1; i <= SERIES_LEN; i++) if (starsOf(id, i) < 0) return i;
+  return SERIES_LEN;
+}
+function saveStars(id, idx, stars) {
+  if (!progress[id]) progress[id] = {};
+  progress[id][idx] = Math.max(starsOf(id, idx), stars);
+  store.set('progress', progress);
+}
+
+// 依螢幕比例決定格數(三種關卡型態共用)
+function gridSize(lv) {
   const p = levelParams(lv);
-  const rng = mulberry32(lv * 7919 + 12345);
   const { w, h } = viewSize();
   const portrait = h >= w;
-  const shortCells = p.short;
   const ratio = Math.max(w, h) / Math.min(w, h);
-  const longCells = clamp(Math.round(shortCells * ratio), shortCells, 24);
-  game.cols = portrait ? shortCells : longCells;
-  game.rows = portrait ? longCells : shortCells;
+  const longCells = clamp(Math.round(p.short * ratio), p.short, 24);
+  game.cols = portrait ? p.short : longCells;
+  game.rows = portrait ? longCells : p.short;
+}
+
+function buildLevel(index) {
+  const s = seriesById(game.series);
+  game.levelIndex = index;
+  game.stage = s.stage;
+  // 系列內難度遞增:第 1 關 = 系列基礎難度,之後每關 +1
+  game.diff = s.diff + (index - 1);
+  const seed = (SERIES.indexOf(s) + 1) * 131071 + index * 7919;
+  gridSize(game.diff);
+  if (game.stage === 'maze') buildMazeStage(game.diff, seed);
+  else if (game.stage === 'board') buildBoardStage(game.diff, seed);
+  else buildPathStage(game.diff, seed);
+
+  game.stars = [];
+  game.starsGot = 0;
+  game.falls = 0;
+  game.time = 0;
+  game.particles = [];
+  game.goalHintT = -9;
+  layout();
+  resetBall();
+  updateHUD();
+  if (game.stage === 'board') toast('依序通過 ①②③ 再進終點!');
+  else if (game.stage === 'path') toast('沿著棧道走,別掉下去!');
+  else if (index === 1) toast(theme().startToast);
+}
+
+// 老街平衡彈珠台:整片坑洞、蜿蜒安全通道、依序闖關檢查點
+function buildBoardStage(lv, seed) {
+  const rng = mulberry32(seed + 54321);
+  const { cols, rows } = game;
+  game.maze = null;
+  game.pathCells = null;
+
+  // 蜿蜒安全通道(由下而上隨機左右擺)
+  const channel = new Array(rows);
+  let cx = Math.floor(cols / 2);
+  for (let r = rows - 1; r >= 0; r--) {
+    channel[r] = cx;
+    cx = clamp(cx + Math.floor(rng() * 3) - 1, 1, cols - 2);
+  }
+  game.boardChannel = channel;
+
+  // 坑洞:隔行整排,避開通道左右各一格;關卡越高洞越密
+  const density = clamp(0.72 + lv * 0.01, 0.72, 0.92);
+  game.holeCells = [];
+  for (let r = 2; r < rows - 1; r += 2) {
+    for (let c = 0; c < cols; c++) {
+      if (Math.abs(c - channel[r]) <= 1) continue;
+      if (rng() < density) game.holeCells.push({ x: c, y: r });
+    }
+  }
+
+  // 檢查點 ①②③(由下而上,必須依序通過)
+  const cpRows = [Math.floor(rows * 0.72), Math.floor(rows * 0.47), Math.floor(rows * 0.22)];
+  game.starCells = cpRows.map(r => ({ x: channel[r], y: r }));
+  game.startCell = { x: channel[rows - 1], y: rows - 1 };
+  game.goalCell = { x: channel[0], y: 0 };
+}
+
+// 高空獨木橋:無牆棧道,離開路面就摔落
+function buildPathStage(lv, seed) {
+  const rng = mulberry32(seed + 99991);
+  const { cols, rows } = game;
+  game.maze = null;
+  game.holeCells = [];
+
+  // 蜿蜒棧道(每行一個節點,左右漫走)
+  const channel = new Array(rows);
+  let cx = Math.floor(cols / 2);
+  for (let r = rows - 1; r >= 0; r--) {
+    channel[r] = cx;
+    const step = Math.floor(rng() * 3) - 1;
+    cx = clamp(cx + step, 1, cols - 2);
+  }
+  game.pathCells = [];
+  for (let r = rows - 1; r >= 0; r--) game.pathCells.push({ x: channel[r], y: r });
+
+  const cpRows = [Math.floor(rows * 0.7), Math.floor(rows * 0.45), Math.floor(rows * 0.2)];
+  game.starCells = cpRows.map(r => ({ x: channel[r], y: r }));
+  game.startCell = { x: channel[rows - 1], y: rows - 1 };
+  game.goalCell = { x: channel[0], y: 0 };
+}
+
+function buildMazeStage(lv, seed) {
+  const p = levelParams(lv);
+  const rng = mulberry32(seed + 12345);
+  game.pathCells = null;
   game.maze = generateMaze(game.cols, game.rows, rng, p.braid);
 
   // 起點:左下角;終點:離起點最遠的格子
@@ -511,15 +644,6 @@ function buildLevel(lv) {
       }
     }
   }
-
-  game.stars = [];
-  game.starsGot = 0;
-  game.falls = 0;
-  game.time = 0;
-  game.particles = [];
-  layout();
-  resetBall();
-  updateHUD();
 }
 
 // 依視窗大小計算格子尺寸與所有幾何(轉向 / 縮放時重呼叫)
@@ -545,12 +669,22 @@ function layout() {
   game.stars = game.starCells.map((c, i) => ({ ...cc(c), got: game.stars[i] ? game.stars[i].got : false }));
   game.holes = game.holeCells.map(c => ({ ...cc(c), r: game.cellSize * 0.3 }));
 
+  // 獨木橋:棧道折線(像素座標)與路寬
+  if (game.stage === 'path') {
+    game.pathPoints = game.pathCells.map(c => cc(c));
+    game.pathWidth = Math.max(game.ball.r * 2.6, game.cellSize * 0.92);
+  } else {
+    game.pathPoints = null;
+  }
+
   buildWallRects();
   renderMazeLayer();
 }
 
 function buildWallRects() {
   const { cols, rows, cellSize: s, offX, offY, wallT: t } = game;
+  // 獨木橋:完全無牆(靠掉落判定)
+  if (game.stage === 'path') { game.walls = []; return; }
   const half = t / 2;
   const rects = [];
   const px = x => offX + x * s;
@@ -560,12 +694,14 @@ function buildWallRects() {
   rects.push({ x: px(0) - half, y: py(rows) - half, w: cols * s + t, h: t });
   rects.push({ x: px(0) - half, y: py(0) - half, w: t, h: rows * s + t });
   rects.push({ x: px(cols) - half, y: py(0) - half, w: t, h: rows * s + t });
-  // 內牆(只取每格的 e 與 s,避免重複)
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const c = game.maze[y][x];
-      if (c.e && x < cols - 1) rects.push({ x: px(x + 1) - half, y: py(y) - half, w: t, h: s + t });
-      if (c.s && y < rows - 1) rects.push({ x: px(x) - half, y: py(y + 1) - half, w: s + t, h: t });
+  // 內牆(迷宮限定;彈珠台只有外框)
+  if (game.maze) {
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const c = game.maze[y][x];
+        if (c.e && x < cols - 1) rects.push({ x: px(x + 1) - half, y: py(y) - half, w: t, h: s + t });
+        if (c.s && y < rows - 1) rects.push({ x: px(x) - half, y: py(y + 1) - half, w: s + t, h: t });
+      }
     }
   }
   game.walls = rects;
@@ -599,9 +735,12 @@ function renderMazeLayer() {
     grad.addColorStop(0, 'rgba(24, 30, 66, 0.9)');
     grad.addColorStop(1, 'rgba(8, 10, 24, 0.9)');
   }
-  fc.fillStyle = grad;
-  fc.fillRect(fx, fy, fw, fh);
-  if (style && style.decor === 'passionSeeds') {
+  const noFloor = game.stage === 'path';   // 獨木橋:沒有地板,只有懸空棧道
+  if (!noFloor) {
+    fc.fillStyle = grad;
+    fc.fillRect(fx, fy, fw, fh);
+  }
+  if (!noFloor && style && style.decor === 'passionSeeds') {
     // 百香果:散落的黑籽(帶果凍光澤)
     const nSeeds = Math.round(game.cols * game.rows * 0.7);
     for (let i = 0; i < nSeeds; i++) {
@@ -619,7 +758,7 @@ function renderMazeLayer() {
       fc.beginPath(); fc.arc(-sr * 0.35, -sr * 0.3, sr * 0.3, 0, Math.PI * 2); fc.fill();
       fc.restore();
     }
-  } else if (style && style.decor === 'appleCore') {
+  } else if (!noFloor && style && style.decor === 'appleCore') {
     // 蘋果:中央果核星形籽 + 放射狀果肉纖維
     const cx0 = fx + fw / 2, cy0 = fy + fh / 2;
     fc.save();
@@ -645,7 +784,7 @@ function renderMazeLayer() {
       fc.restore();
     }
     fc.restore();
-  } else if (style && style.decor === 'pineRings') {
+  } else if (!noFloor && style && style.decor === 'pineRings') {
     // 鳳梨:同心果肉環紋 + 纖維短刻
     const cx0 = fx + fw / 2, cy0 = fy + fh / 2;
     fc.save();
@@ -671,13 +810,57 @@ function renderMazeLayer() {
     fc.restore();
   }
   // 淡格線
-  fc.strokeStyle = style ? style.grid : 'rgba(90, 120, 220, 0.07)';
-  fc.lineWidth = 1;
-  for (let x = 0; x <= game.cols; x++) {
-    fc.beginPath(); fc.moveTo(fx + x * game.cellSize, fy); fc.lineTo(fx + x * game.cellSize, fy + fh); fc.stroke();
+  if (!noFloor) {
+    fc.strokeStyle = style ? style.grid : 'rgba(90, 120, 220, 0.07)';
+    fc.lineWidth = 1;
+    for (let x = 0; x <= game.cols; x++) {
+      fc.beginPath(); fc.moveTo(fx + x * game.cellSize, fy); fc.lineTo(fx + x * game.cellSize, fy + fh); fc.stroke();
+    }
+    for (let y = 0; y <= game.rows; y++) {
+      fc.beginPath(); fc.moveTo(fx, fy + y * game.cellSize); fc.lineTo(fx + fw, fy + y * game.cellSize); fc.stroke();
+    }
   }
-  for (let y = 0; y <= game.rows; y++) {
-    fc.beginPath(); fc.moveTo(fx, fy + y * game.cellSize); fc.lineTo(fx + fw, fy + y * game.cellSize); fc.stroke();
+
+  // 老街彈珠台:整片坑洞烘焙進地板(靜態,省效能)
+  if (game.stage === 'board') {
+    const rim = style ? style.holeRim : '140, 60, 255';
+    for (const hole of game.holes) {
+      const g2 = fc.createRadialGradient(hole.x, hole.y, 0, hole.x, hole.y, hole.r * 1.3);
+      g2.addColorStop(0, '#0a0503');
+      g2.addColorStop(0.6, '#160a05');
+      g2.addColorStop(0.85, `rgba(${rim}, 0.8)`);
+      g2.addColorStop(1, `rgba(${rim}, 0)`);
+      fc.fillStyle = g2;
+      fc.beginPath();
+      fc.arc(hole.x, hole.y, hole.r * 1.3, 0, Math.PI * 2);
+      fc.fill();
+    }
+  }
+
+  // 高空獨木橋:懸空棧道(周圍是深淵)
+  if (noFloor && game.pathPoints) {
+    const pts = game.pathPoints;
+    fc.lineCap = 'round';
+    fc.lineJoin = 'round';
+    const ribbon = (width, colorStyle) => {
+      fc.strokeStyle = colorStyle;
+      fc.lineWidth = width;
+      fc.beginPath();
+      fc.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) fc.lineTo(pts[i].x, pts[i].y);
+      fc.stroke();
+    };
+    // 邊緣光
+    ribbon(game.pathWidth + Math.max(8, game.cellSize * 0.22), style ? 'rgba(255, 200, 120, 0.22)' : 'rgba(120, 180, 255, 0.28)');
+    // 棧道板面
+    const deck = fc.createLinearGradient(fx, fy, fx, fy + fh);
+    deck.addColorStop(0, style ? style.floor[0] : '#2a3468');
+    deck.addColorStop(1, style ? style.floor[1] : '#141a3a');
+    ribbon(game.pathWidth, deck);
+    // 中線虛線
+    fc.setLineDash([game.cellSize * 0.28, game.cellSize * 0.4]);
+    ribbon(Math.max(1.5, game.cellSize * 0.05), style ? 'rgba(120, 70, 10, 0.4)' : 'rgba(180, 220, 255, 0.35)');
+    fc.setLineDash([]);
   }
   game.floorLayer = floor;
 
@@ -780,6 +963,27 @@ function physicsStep(dt) {
     b.y += (b.vy * dt) / steps;
     collideWalls();
   }
+
+  // 獨木橋:球心離棧道中線太遠 → 從邊緣摔落
+  if (game.stage === 'path' && game.state === 'play' &&
+      distToPath(b.x, b.y) > game.pathWidth / 2 - b.r * 0.3) {
+    startFall({ x: b.x, y: b.y, r: b.r });
+  }
+}
+
+// 點到棧道折線的最短距離
+function distToPath(px, py) {
+  const pts = game.pathPoints;
+  if (!pts || pts.length < 2) return 0;
+  let best = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const ax = pts[i].x, ay = pts[i].y;
+    const dx = pts[i + 1].x - ax, dy = pts[i + 1].y - ay;
+    const L2 = dx * dx + dy * dy || 1;
+    const tt = clamp(((px - ax) * dx + (py - ay) * dy) / L2, 0, 1);
+    best = Math.min(best, dist2(px, py, ax + dx * tt, ay + dy * tt));
+  }
+  return Math.sqrt(best);
 }
 
 function collideWalls() {
@@ -827,14 +1031,29 @@ function collideWalls() {
 /* ---------- 遊戲邏輯 ---------- */
 function checkPickups() {
   const b = game.ball;
-  for (const s of game.stars) {
-    if (!s.got && dist2(b.x, b.y, s.x, s.y) < (b.r + game.cellSize * 0.2) ** 2) {
+  if (game.stage === 'board') {
+    // 老街彈珠台:檢查點必須依序通過(只有下一個可以觸發)
+    const s = game.stars[game.starsGot];
+    if (s && !s.got && dist2(b.x, b.y, s.x, s.y) < (b.r + game.cellSize * 0.26) ** 2) {
       s.got = true;
       game.starsGot++;
       sfx.star();
       buzz([15, 30, 15]);
       spawnBurst(s.x, s.y, '#ffd66e', 16);
       updateHUD();
+      if (game.starsGot < 3) toast(`通過 ${'①②③'[game.starsGot - 1]}!下一個:${'①②③'[game.starsGot]}`);
+      else toast('全部通過!前往終點!');
+    }
+  } else {
+    for (const s of game.stars) {
+      if (!s.got && dist2(b.x, b.y, s.x, s.y) < (b.r + game.cellSize * 0.2) ** 2) {
+        s.got = true;
+        game.starsGot++;
+        sfx.star();
+        buzz([15, 30, 15]);
+        spawnBurst(s.x, s.y, '#ffd66e', 16);
+        updateHUD();
+      }
     }
   }
   for (const hole of game.holes) {
@@ -844,6 +1063,14 @@ function checkPickups() {
     }
   }
   if (dist2(b.x, b.y, game.goal.x, game.goal.y) < (game.goal.r * 0.8) ** 2) {
+    // 彈珠台:沒依序通過 ①②③ 前終點不開
+    if (game.stage === 'board' && game.starsGot < 3) {
+      if (game.time - game.goalHintT > 2) {
+        game.goalHintT = game.time;
+        toast(`終點未開!先通過 ${'①②③'[game.starsGot]}`);
+      }
+      return;
+    }
     levelClear();
   }
 }
@@ -863,25 +1090,32 @@ function levelClear() {
   buzz([30, 50, 30, 50, 60]);
   spawnBurst(game.goal.x, game.goal.y, theme().style ? theme().style.burst : '#4de8ff', 30);
 
+  // 星等:迷宮 = 收集數;彈珠台/獨木橋 = 依摔落次數(0 次滿星)
+  const rating = game.stage === 'maze' ? game.starsGot : 3 - clamp(game.falls, 0, 2);
+  const firstClear = starsOf(game.series, game.levelIndex) < 0;
+  saveStars(game.series, game.levelIndex, rating);
+
   const timeBonus = Math.max(0, 120 - Math.floor(game.time)) * 5;
-  const starBonus = game.starsGot * 200;
+  const starBonus = rating * 200;
   const noFall = game.falls === 0 ? 150 : 0;
-  const levelScore = 300 + game.level * 50 + timeBonus + starBonus + noFall;
+  const levelScore = 300 + game.diff * 50 + timeBonus + starBonus + noFall;
   game.totalScore += levelScore;
-  game.bestLevel = Math.max(game.bestLevel, game.level + 1);
   game.bestScore = Math.max(game.bestScore, game.totalScore);
-  store.set('level', game.level + 1);
   store.set('totalScore', game.totalScore);
-  store.set('bestLevel', game.bestLevel);
   store.set('bestScore', game.bestScore);
 
-  document.getElementById('clear-title').textContent = theme().clearTitle;
+  const s = seriesById(game.series);
+  const isLast = game.levelIndex >= SERIES_LEN;
+  document.getElementById('clear-title').textContent =
+    isLast ? `🏆 ${s.name} 全破!` : theme().clearTitle;
   const starsEl = document.getElementById('clear-stars');
   starsEl.innerHTML = [0, 1, 2].map(i =>
-    `<span class="${i < game.starsGot ? '' : 'off'}">${theme().icon}</span>`).join('');
+    `<span class="${i < rating ? '' : 'off'}">${theme().icon}</span>`).join('');
   document.getElementById('clear-time').textContent = fmtTime(game.time);
   document.getElementById('clear-score').textContent = '+' + levelScore;
   document.getElementById('clear-total').textContent = game.totalScore;
+  const btnNext = document.getElementById('btn-next');
+  btnNext.textContent = isLast ? '返回系列選單' : `下一關(${game.levelIndex + 1}/${SERIES_LEN})➜`;
   setTimeout(() => show('screen-clear'), 650);
 }
 
@@ -981,8 +1215,8 @@ function draw(now) {
   ctx.filter = 'none';
   ctx.restore();
 
-  // 陷阱:水果=果皮蟲蛀洞;星雲=黑洞
-  for (const hole of game.holes) {
+  // 陷阱:水果=果皮蟲蛀洞;星雲=黑洞(彈珠台的坑洞已烘焙進地板,跳過)
+  for (const hole of (game.stage === 'board' ? [] : game.holes)) {
     const pulse = 1 + 0.06 * Math.sin(t * 3 + hole.x);
     if (style) {
       const g = ctx.createRadialGradient(hole.x, hole.y, 0, hole.x, hole.y, hole.r * 1.4);
@@ -1021,12 +1255,41 @@ function draw(now) {
     }
   }
 
-  // 收集物:水果=花朵;星雲=星星
-  for (const s of game.stars) {
-    if (s.got) continue;
-    const pulse = 1 + 0.15 * Math.sin(t * 4 + s.x);
-    if (style) drawFlower(s.x, s.y, game.cellSize * 0.16 * pulse, t, style.flower);
-    else drawStar(s.x, s.y, game.cellSize * 0.17 * pulse, t);
+  // 收集物:彈珠台=編號檢查點;水果=花朵;星雲=星星
+  if (game.stage === 'board') {
+    game.stars.forEach((s, i) => {
+      const done = s.got;
+      const next = !done && i === game.starsGot;
+      const R = game.cellSize * (next ? 0.3 + 0.03 * Math.sin(t * 5) : 0.25);
+      if (next) {
+        const glow = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, R * 2.2);
+        glow.addColorStop(0, 'rgba(255, 210, 62, 0.5)');
+        glow.addColorStop(1, 'rgba(255, 210, 62, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, R * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = done ? 'rgba(90, 200, 120, 0.9)' : (next ? '#ffd23e' : 'rgba(210, 210, 220, 0.35)');
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = done ? '#1c5c30' : 'rgba(60, 40, 5, 0.8)';
+      ctx.lineWidth = Math.max(1.5, R * 0.12);
+      ctx.stroke();
+      ctx.fillStyle = done ? '#0c3316' : '#3a2405';
+      ctx.font = `bold ${Math.round(R * 1.15)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(done ? '✓' : String(i + 1), s.x, s.y + R * 0.05);
+    });
+  } else {
+    for (const s of game.stars) {
+      if (s.got) continue;
+      const pulse = 1 + 0.15 * Math.sin(t * 4 + s.x);
+      if (style) drawFlower(s.x, s.y, game.cellSize * 0.16 * pulse, t, style.flower);
+      else drawStar(s.x, s.y, game.cellSize * 0.17 * pulse, t);
+    }
   }
 
   // 終點:百香果=果汁漩渦;星雲=傳送門
@@ -1386,7 +1649,13 @@ function loop(now) {
     if (game.fallAnim >= 0.9) {
       resetBall();
       trail.length = 0;
-      toast(theme().fallToast);
+      toast(game.stage === 'path' ? '從棧道上摔下去了!從起點重來' : theme().fallToast);
+      if (game.stage === 'board') {
+        // 老街規則:摔落後檢查點重來
+        game.starsGot = 0;
+        game.stars.forEach(s => { s.got = false; });
+        updateHUD();
+      }
       game.state = 'play';
     }
   }
@@ -1414,8 +1683,11 @@ function fmtTime(s) {
 }
 
 function updateHUD() {
-  $('hud-level').textContent = 'LV ' + game.level;
-  $('hud-stars').textContent = `${theme().icon} ${game.starsGot}/3`;
+  const s = seriesById(game.series);
+  $('hud-level').textContent = `${s.icon} ${game.levelIndex}/${SERIES_LEN}`;
+  $('hud-stars').textContent = game.stage === 'board'
+    ? `◎ ${game.starsGot}/3`
+    : `${theme().icon} ${game.starsGot}/3`;
   $('hud-time').textContent = fmtTime(game.time);
 }
 
@@ -1435,27 +1707,89 @@ function startGame() {
   requestSensor();
   enterFullscreen();
   hide('screen-start');
-  // 觸控裝置:先請玩家把手機平放校準,再開始
+  // 觸控裝置:先請玩家把手機平放校準,再進選單
   if ('ontouchstart' in window && typeof DeviceOrientationEvent !== 'undefined') {
     openLevelCalibration('start');
   } else {
-    beginPlay();
+    showSeries();
   }
 }
 
-function beginPlay() {
+/* ---------- 系列 / 關卡選單 ---------- */
+function totalStarsAll() {
+  let n = 0;
+  for (const s of SERIES) for (let i = 1; i <= SERIES_LEN; i++) n += Math.max(0, starsOf(s.id, i));
+  return n;
+}
+
+function showSeries() {
+  game.state = 'menu';
+  hide('hud'); hide('screen-clear'); hide('screen-levels');
+  const list = $('series-list');
+  list.innerHTML = '';
+  for (const s of SERIES) {
+    const cleared = clearedCount(s.id);
+    let starSum = 0;
+    for (let i = 1; i <= SERIES_LEN; i++) starSum += Math.max(0, starsOf(s.id, i));
+    const btn = document.createElement('button');
+    btn.className = 'series-card' + (cleared >= SERIES_LEN ? ' done' : '');
+    btn.innerHTML = `
+      <span class="s-icon">${s.icon}</span>
+      <span class="s-info">
+        <span class="s-name">${s.name}${cleared >= SERIES_LEN ? ' 🏆' : ''}</span>
+        <span class="s-desc">${s.desc}</span>
+        <span class="s-bar"><span class="s-bar-fill" style="width:${cleared * 10}%"></span></span>
+      </span>
+      <span class="s-prog">${cleared}/${SERIES_LEN}<br><small>★${starSum}</small></span>`;
+    btn.addEventListener('click', () => { sfx.click(); showLevels(s.id); });
+    list.appendChild(btn);
+  }
+  $('series-total').textContent = `總星數 ★${totalStarsAll()} / ${SERIES.length * SERIES_LEN * 3} · 總分 ${game.totalScore}`;
+  show('screen-series');
+}
+
+function showLevels(id) {
+  const s = seriesById(id);
+  game.series = id;
+  store.set('series', id);
+  $('levels-title').textContent = `${s.icon} ${s.name}`;
+  const grid = $('level-grid');
+  grid.innerHTML = '';
+  const unlocked = unlockedIndex(id);
+  for (let i = 1; i <= SERIES_LEN; i++) {
+    const st = starsOf(id, i);
+    const btn = document.createElement('button');
+    const locked = i > unlocked;
+    btn.className = 'level-cell' + (st >= 0 ? ' cleared' : '') + (i === unlocked ? ' current' : '') + (locked ? ' locked' : '');
+    btn.disabled = locked;
+    btn.innerHTML = locked
+      ? '🔒'
+      : `<span class="lv-num">${i}</span><span class="lv-stars">${st >= 0 ? '★'.repeat(Math.max(1, st)) : ''}</span>`;
+    if (!locked) btn.addEventListener('click', () => { sfx.click(); enterLevel(id, i); });
+    grid.appendChild(btn);
+  }
+  hide('screen-series');
+  show('screen-levels');
+}
+
+function enterLevel(id, index) {
+  const s = seriesById(id);
+  game.series = id;
+  settings.theme = s.theme;          // 主題由系列決定
+  applyThemeClass();
+  hide('screen-levels'); hide('screen-series'); hide('screen-clear');
   show('hud');
-  buildLevel(game.level);
+  buildLevel(index);
   game.state = 'play';
   lastT = 0;
-  if (game.level === 1) toast(theme().startToast);
 }
 
 function updateBestLine() {
   const el = $('best-line');
-  if (game.bestScore > 0) {
-    el.textContent = `最高紀錄:LV ${game.bestLevel} · ${game.bestScore} 分`;
-    $('btn-start').textContent = game.level > 1 ? `繼續遊戲(LV ${game.level})` : '開始遊戲';
+  const stars = totalStarsAll();
+  if (stars > 0 || game.bestScore > 0) {
+    el.textContent = `總星數 ★${stars} · 最高總分 ${game.bestScore}`;
+    $('btn-start').textContent = '繼續遊戲';
   } else {
     el.textContent = '';
   }
@@ -1470,17 +1804,26 @@ $('btn-level-confirm').addEventListener('click', () => closeLevelCalibration(tru
 $('btn-level-skip').addEventListener('click', () => closeLevelCalibration(true));
 $('btn-next').addEventListener('click', () => {
   sfx.click();
-  game.level++;
-  store.set('level', game.level);
   hide('screen-clear');
-  buildLevel(game.level);
-  game.state = 'play';
+  if (game.levelIndex >= SERIES_LEN) {
+    showSeries();               // 系列全破 → 回系列選單
+  } else {
+    enterLevel(game.series, game.levelIndex + 1);
+  }
 });
 $('btn-replay').addEventListener('click', () => {
   sfx.click();
   hide('screen-clear');
-  buildLevel(game.level);
-  game.state = 'play';
+  enterLevel(game.series, game.levelIndex);
+});
+$('btn-clear-menu').addEventListener('click', () => {
+  sfx.click();
+  hide('screen-clear');
+  showLevels(game.series);
+});
+$('btn-back-series').addEventListener('click', () => {
+  sfx.click();
+  showSeries();
 });
 
 // 設定
@@ -1491,7 +1834,7 @@ function openSettings(from) {
   $('set-sensitivity').value = settings.sensitivity;
   $('set-sound').checked = settings.sound;
   $('set-vibrate').checked = settings.vibrate;
-  $('set-theme').value = settings.theme;
+  $('btn-exit-level').classList.toggle('hidden', from !== 'game');
   show('screen-settings');
 }
 $('btn-settings').addEventListener('click', () => openSettings('game'));
@@ -1500,35 +1843,32 @@ $('btn-close-settings').addEventListener('click', () => {
   settings.sensitivity = parseFloat($('set-sensitivity').value);
   settings.sound = $('set-sound').checked;
   settings.vibrate = $('set-vibrate').checked;
-  const newTheme = $('set-theme').value;
-  const themeChanged = newTheme !== settings.theme;
-  settings.theme = newTheme;
   store.set('sensitivity', settings.sensitivity);
   store.set('sound', settings.sound);
   store.set('vibrate', settings.vibrate);
-  store.set('theme', settings.theme);
-  if (themeChanged) {
-    applyThemeClass();
-    if (game.maze) renderMazeLayer();  // 重繪牆與地板
-    trail.length = 0;
-    updateHUD();
-  }
   hide('screen-settings');
   if (settingsFrom === 'game') game.state = 'play';
   sfx.click();
 });
+$('btn-exit-level').addEventListener('click', () => {
+  sfx.click();
+  hide('screen-settings');
+  showLevels(game.series);
+});
 $('btn-reset-progress').addEventListener('click', () => {
   if (!confirm('確定要重置所有進度與最高分?')) return;
-  game.level = 1; game.totalScore = 0; game.bestLevel = 1; game.bestScore = 0;
-  store.set('level', 1); store.set('totalScore', 0);
-  store.set('bestLevel', 1); store.set('bestScore', 0);
+  game.totalScore = 0; game.bestScore = 0;
+  for (const k of Object.keys(progress)) delete progress[k];
+  store.set('progress', progress);
+  store.set('totalScore', 0);
+  store.set('bestScore', 0);
   updateBestLine();
   toast('進度已重置');
 });
 
 // 轉向 / 縮放
 window.addEventListener('resize', () => {
-  if (game.maze) {
+  if (game.cols) {
     // 以格為單位保留球的位置
     const relX = (game.ball.x - game.offX) / game.cellSize;
     const relY = (game.ball.y - game.offY) / game.cellSize;
@@ -1571,6 +1911,6 @@ if (!('ontouchstart' in window)) {
 requestAnimationFrame(loop);
 
 // 除錯掛鉤(開發工具檢視內部狀態用,不影響遊戲)
-window.__nebula = { game, input, getTilt, physicsStep, draw, buildLevel, checkPickups, openLevelCalibration, updateLevelGauge, closeLevelCalibration };
+window.__nebula = { game, input, getTilt, physicsStep, draw, buildLevel, checkPickups, openLevelCalibration, updateLevelGauge, closeLevelCalibration, SERIES, showSeries, showLevels, enterLevel, starsOf, distToPath };
 
 })();

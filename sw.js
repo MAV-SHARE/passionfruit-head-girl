@@ -1,5 +1,5 @@
 /* 百香果頭女孩 — Service Worker(離線快取 + 版本更新) */
-const CACHE = 'pfhg-v6';
+const CACHE = 'pfhg-v7';
 const ASSETS = [
   './',
   './index.html',
