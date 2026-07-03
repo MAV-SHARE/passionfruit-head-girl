@@ -47,6 +47,7 @@
     <p class="desc" id="title-desc">傾斜你的手機,讓百香果滾過果肉迷宮。<br>收集花朵、避開蟲蛀洞、滾進果汁漩渦。</p>
     <div class="best" id="best-line"></div>
     <button class="btn-primary" id="btn-start">開始遊戲</button>
+    <button class="btn-ghost" id="btn-rank-start">🏆 排行榜 / 成就</button>
     <button class="btn-ghost" id="btn-settings-start">設定</button>
     <p class="hint" id="control-hint">手機:傾斜操作 &nbsp;|&nbsp; 電腦:方向鍵 / 拖曳</p>
   </div>
@@ -182,6 +183,26 @@
     <h2>選擇系列</h2>
     <div id="series-list"></div>
     <div class="best" id="series-total"></div>
+    <button class="btn-ghost" id="btn-rank-series">🏆 排行榜 / 成就</button>
+  </div>
+</div>
+
+<!-- 排行榜 / 成就 -->
+<div id="screen-rank" class="overlay hidden">
+  <div class="panel">
+    <h2>🏆 排行榜</h2>
+    <div class="rank-tabs">
+      <button id="tab-world" class="active">世界排行</button>
+      <button id="tab-me">我的成就</button>
+    </div>
+    <div id="rank-world">
+      <div id="rank-list"><div class="rank-empty">載入中…</div></div>
+    </div>
+    <div id="rank-me" class="hidden">
+      <div id="me-stats"></div>
+      <div id="ach-list"></div>
+    </div>
+    <button class="btn-primary" id="btn-close-rank">返回</button>
   </div>
 </div>
 
@@ -230,6 +251,8 @@
   </div>
 </div>
 
+<script src="js/firebase-config.js"></script>
+<script src="js/leaderboard.js"></script>
 <script src="js/game.js"></script>
 <script>
 // Service Worker 註冊 + 自動偵測新版本

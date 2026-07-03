@@ -79,3 +79,37 @@ npx serve .
 ## 📄 授權
 
 MIT
+
+## 🏆 排行榜與成就(Firebase)
+
+遊戲內建「排行榜 / 成就」畫面(開始畫面與系列選單都有入口):
+
+- **我的成就**:離線可用 — 暱稱(可改)、總分、總星數、通關數,以及 12 個成就徽章(初次過關、各系列全破、摘星者、全滿貫…),全部由本機進度即時計算,過關時解鎖新成就會彈出提示
+- **世界排行**:需要設定 Firebase(免費方案即可),依總分排名前 50,顯示 🥇🥈🥉、暱稱、星數、分數,自己的名次會加亮;每次過關與開啟排行榜時自動上傳成績(匿名登入,玩家免註冊)
+
+### Firebase 設定步驟
+
+1. 到 [Firebase Console](https://console.firebase.google.com) 建立專案(不用開啟 Google Analytics)
+2. 專案總覽 → 新增應用程式 → 選「網頁」→ 複製 `firebaseConfig` 物件
+3. 貼到 [`js/firebase-config.js`](js/firebase-config.js)(取代 `null`)
+4. Authentication → Sign-in method → 啟用 **匿名**
+5. Firestore Database → 建立資料庫(正式版模式)→ 規則貼上:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /players/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid
+                   && request.resource.data.name is string
+                   && request.resource.data.name.size() <= 20
+                   && request.resource.data.totalScore is number;
+    }
+  }
+}
+```
+
+6. 部署(`firebase-config.js` 走網路優先,改完即生效,不必等版本更新)
+
+> 未設定 Firebase 時,排行榜自動降級為離線模式,遊戲其他功能完全不受影響;Firebase SDK 採動態載入,離線遊玩不會嘗試下載。

@@ -1,10 +1,12 @@
 /* 百香果頭女孩 — Service Worker(離線快取 + 版本更新) */
-const CACHE = 'pfhg-v7';
+const CACHE = 'pfhg-v8';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
   './js/game.js',
+  './js/leaderboard.js',
+  './js/firebase-config.js',
   './manifest.webmanifest',
   './icons/favicon.svg',
   './icons/icon-192.png',
@@ -33,11 +35,25 @@ self.addEventListener('activate', (e) => {
 // 快取優先,失敗才走網路;新資源順手放入快取
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // Firebase 設定檔:網路優先(填入設定後不必等版本更新即可生效)
+  if (url.pathname.endsWith('firebase-config.js')) {
+    e.respondWith(
+      fetch(e.request).then((res) => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then((hit) => {
       if (hit) return hit;
       return fetch(e.request).then((res) => {
-        if (res.ok && new URL(e.request.url).origin === location.origin) {
+        if (res.ok && url.origin === location.origin) {
           const clone = res.clone();
           caches.open(CACHE).then((c) => c.put(e.request, clone));
         }

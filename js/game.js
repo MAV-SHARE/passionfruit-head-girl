@@ -42,6 +42,7 @@ const settings = {
   sensitivity: store.get('sensitivity', 1),
   sound: store.get('sound', true),
   vibrate: store.get('vibrate', true),
+  playerName: store.get('playerName', ''),
   theme: store.get('theme', 'passion'),
 };
 
@@ -1103,6 +1104,8 @@ function levelClear() {
   game.bestScore = Math.max(game.bestScore, game.totalScore);
   store.set('totalScore', game.totalScore);
   store.set('bestScore', game.bestScore);
+  syncLeaderboard();
+  checkAchievements();
 
   const s = seriesById(game.series);
   const isLast = game.levelIndex >= SERIES_LEN;
@@ -1715,6 +1718,147 @@ function startGame() {
   }
 }
 
+/* ---------- 排行榜 & 成就 ---------- */
+function playerName() {
+  if (!settings.playerName) {
+    settings.playerName = '玩家' + Math.floor(1000 + Math.random() * 9000);
+    store.set('playerName', settings.playerName);
+  }
+  return settings.playerName;
+}
+
+function playerProfile() {
+  let clears = 0;
+  for (const s of SERIES) clears += clearedCount(s.id);
+  return {
+    name: playerName(),
+    totalScore: game.totalScore,
+    totalStars: totalStarsAll(),
+    clears,
+  };
+}
+
+// 上傳成績(未設定 Firebase 或離線時靜默略過)
+function syncLeaderboard() {
+  if (window.LB && window.LB.available()) window.LB.submit(playerProfile());
+}
+
+// 成就(由本機進度即時計算,不需伺服器)
+function anyRating(n) {
+  for (const s of SERIES) {
+    for (let i = 1; i <= SERIES_LEN; i++) if (starsOf(s.id, i) >= n) return true;
+  }
+  return false;
+}
+const ACHIEVEMENTS = [
+  { icon: '🎉', name: '初次過關', desc: '完成任何一個關卡', test: () => SERIES.some(s => clearedCount(s.id) > 0) },
+  { icon: '⭐', name: '完美三星', desc: '任一關卡拿到 3 星', test: () => anyRating(3) },
+  { icon: '🥭', name: '百香果達人', desc: '百香果果園 10 關全破', test: () => clearedCount('passion') >= SERIES_LEN },
+  { icon: '🎯', name: '老街彈珠王', desc: '老街彈珠台 10 關全破', test: () => clearedCount('board') >= SERIES_LEN },
+  { icon: '🍎', name: '蘋果獵人', desc: '蘋果果園 10 關全破', test: () => clearedCount('apple') >= SERIES_LEN },
+  { icon: '🌉', name: '走索人', desc: '高空獨木橋 10 關全破', test: () => clearedCount('bridge') >= SERIES_LEN },
+  { icon: '🍍', name: '鳳梨田霸主', desc: '鳳梨田 10 關全破', test: () => clearedCount('pine') >= SERIES_LEN },
+  { icon: '🌌', name: '星際旅人', desc: '星雲迷宮 10 關全破', test: () => clearedCount('nebula') >= SERIES_LEN },
+  { icon: '✨', name: '摘星者', desc: '總星數達 30', test: () => totalStarsAll() >= 30 },
+  { icon: '🌠', name: '星海霸主', desc: '總星數達 120', test: () => totalStarsAll() >= 120 },
+  { icon: '💰', name: '分數大戶', desc: '累計總分達 20000', test: () => game.totalScore >= 20000 },
+  { icon: '👑', name: '全滿貫', desc: '六大系列全部通關', test: () => SERIES.every(s => clearedCount(s.id) >= SERIES_LEN) },
+];
+function unlockedAchievements() { return ACHIEVEMENTS.filter(a => a.test()); }
+
+// 過關後檢查是否有新成就解鎖(彈提示)
+function checkAchievements() {
+  const seen = store.get('achSeen', []);
+  const newly = [];
+  ACHIEVEMENTS.forEach((a, i) => {
+    if (!seen.includes(i) && a.test()) { seen.push(i); newly.push(a); }
+  });
+  if (newly.length) {
+    store.set('achSeen', seen);
+    setTimeout(() => toast(`🏅 成就解鎖:${newly.map(a => a.icon + a.name).join('、')}`), 1400);
+  }
+}
+
+/* ---------- 排行榜畫面 ---------- */
+let rankFrom = 'start';
+function openRank(from) {
+  rankFrom = from;
+  hide('screen-start'); hide('screen-series');
+  switchRankTab('world');
+  renderMyTab();
+  loadWorldTab();
+  show('screen-rank');
+}
+function closeRank() {
+  hide('screen-rank');
+  if (rankFrom === 'series') show('screen-series');
+  else show('screen-start');
+}
+function switchRankTab(tab) {
+  $('tab-world').classList.toggle('active', tab === 'world');
+  $('tab-me').classList.toggle('active', tab === 'me');
+  $('rank-world').classList.toggle('hidden', tab !== 'world');
+  $('rank-me').classList.toggle('hidden', tab !== 'me');
+}
+async function loadWorldTab() {
+  const list = $('rank-list');
+  if (!window.LB || !window.LB.available()) {
+    list.innerHTML = '<div class="rank-empty">☁️ 尚未設定 Firebase,世界排行榜停用中。<br>你的進度與成就都保存在本機,<br>請看「我的成就」分頁。</div>';
+    return;
+  }
+  list.innerHTML = '<div class="rank-empty">載入中…</div>';
+  syncLeaderboard();  // 順便上傳自己的最新成績
+  const rows = await window.LB.top(50);
+  if (!rows) {
+    list.innerHTML = `<div class="rank-empty">載入失敗:${window.LB.error() || '請檢查網路'}</div>`;
+    return;
+  }
+  if (!rows.length) {
+    list.innerHTML = '<div class="rank-empty">還沒有任何紀錄,快去搶頭香!</div>';
+    return;
+  }
+  const medals = ['🥇', '🥈', '🥉'];
+  const myUid = window.LB.uid();
+  list.innerHTML = rows.map((r, i) => `
+    <div class="rank-row${r.uid === myUid ? ' me' : ''}">
+      <span class="r-rank">${medals[i] || (i + 1)}</span>
+      <span class="r-name">${String(r.name || '玩家').slice(0, 12).replace(/[<>&]/g, '')}</span>
+      <span class="r-stars">★${r.totalStars || 0}</span>
+      <span class="r-score">${r.totalScore || 0}</span>
+    </div>`).join('');
+}
+function renderMyTab() {
+  const p = playerProfile();
+  const unlocked = unlockedAchievements();
+  $('me-stats').innerHTML = `
+    <div class="me-name">${p.name} <button class="name-edit" id="btn-edit-name">✏️</button></div>
+    <div class="me-grid">
+      <div><b>${p.totalScore}</b><span>總分</span></div>
+      <div><b>★${p.totalStars}</b><span>總星數</span></div>
+      <div><b>${p.clears}</b><span>通關數</span></div>
+      <div><b>${unlocked.length}/${ACHIEVEMENTS.length}</b><span>成就</span></div>
+    </div>`;
+  $('ach-list').innerHTML = ACHIEVEMENTS.map(a => {
+    const ok = a.test();
+    return `<div class="ach-row${ok ? '' : ' locked'}">
+      <span class="a-icon">${ok ? a.icon : '🔒'}</span>
+      <span class="a-info"><span class="a-name">${a.name}</span><span class="a-desc">${a.desc}</span></span>
+      ${ok ? '<span class="a-ok">✓</span>' : ''}
+    </div>`;
+  }).join('');
+  const editBtn = document.getElementById('btn-edit-name');
+  if (editBtn) editBtn.onclick = () => {
+    const n = prompt('輸入你的暱稱(最多 12 字):', playerName());
+    if (n && n.trim()) {
+      settings.playerName = n.trim().slice(0, 12);
+      store.set('playerName', settings.playerName);
+      renderMyTab();
+      syncLeaderboard();
+      toast('暱稱已更新');
+    }
+  };
+}
+
 /* ---------- 系列 / 關卡選單 ---------- */
 function totalStarsAll() {
   let n = 0;
@@ -1839,6 +1983,11 @@ function openSettings(from) {
 }
 $('btn-settings').addEventListener('click', () => openSettings('game'));
 $('btn-settings-start').addEventListener('click', () => openSettings('menu'));
+$('btn-rank-start').addEventListener('click', () => { sfx.click(); openRank('start'); });
+$('btn-rank-series').addEventListener('click', () => { sfx.click(); openRank('series'); });
+$('btn-close-rank').addEventListener('click', () => { sfx.click(); closeRank(); });
+$('tab-world').addEventListener('click', () => { sfx.click(); switchRankTab('world'); });
+$('tab-me').addEventListener('click', () => { sfx.click(); switchRankTab('me'); });
 $('btn-close-settings').addEventListener('click', () => {
   settings.sensitivity = parseFloat($('set-sensitivity').value);
   settings.sound = $('set-sound').checked;
