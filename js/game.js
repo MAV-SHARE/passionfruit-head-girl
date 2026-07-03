@@ -6,7 +6,7 @@
 'use strict';
 
 // 版本號(與 sw.js 的 CACHE 版本同步:v1.X.0 ↔ pfhg-vX)
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -467,7 +467,9 @@ const SERIES = [
   { id: 'apple', name: '蘋果果園', icon: '🍎', theme: 'apple', stage: 'maze',
     desc: '蘋果會滾出弧線,不走直線', diff: 3 },
   { id: 'bridge', name: '高空獨木橋', icon: '🌉', theme: 'nebula', stage: 'path',
-    desc: '懸空棧道,滾出邊緣就摔落', diff: 3 },
+    desc: '懸空棧道,滾出邊緣就摔落', diff: 3,
+    // 獨木橋專屬物理:慢速、高阻力、好控制(星雲原生物理太快太滑)
+    phys: { accel: 2200, friction: 3.0, restitution: 0.1, maxSpeed: 700, wobble: 0, squash: false } },
   { id: 'pine', name: '鳳梨田', icon: '🍍', theme: 'pineapple', stage: 'maze',
     desc: '超難滾的鳳梨,顛簸前進', diff: 4 },
   { id: 'nebula', name: '星雲迷宮', icon: '🌌', theme: 'nebula', stage: 'maze',
@@ -552,7 +554,7 @@ function buildBoardStage(lv, seed) {
   game.boardChannel = channel;
 
   // 坑洞:隔行整排,避開通道左右各一格;關卡越高洞越密
-  const density = clamp(0.72 + lv * 0.01, 0.72, 0.92);
+  const density = clamp(0.55 + lv * 0.025, 0.55, 0.88);
   game.holeCells = [];
   for (let r = 2; r < rows - 1; r += 2) {
     for (let c = 0; c < cols; c++) {
@@ -575,12 +577,13 @@ function buildPathStage(lv, seed) {
   game.maze = null;
   game.holeCells = [];
 
-  // 蜿蜒棧道(每行一個節點,左右漫走)
+  // 蜿蜒棧道(每行一個節點;前期偏直,越後面越蜿蜒)
+  const wiggle = clamp(0.3 + lv * 0.06, 0.35, 0.85);
   const channel = new Array(rows);
   let cx = Math.floor(cols / 2);
   for (let r = rows - 1; r >= 0; r--) {
     channel[r] = cx;
-    const step = Math.floor(rng() * 3) - 1;
+    const step = rng() < wiggle ? (rng() < 0.5 ? -1 : 1) : 0;
     cx = clamp(cx + step, 1, cols - 2);
   }
   game.pathCells = [];
@@ -673,10 +676,11 @@ function layout() {
   game.stars = game.starCells.map((c, i) => ({ ...cc(c), got: game.stars[i] ? game.stars[i].got : false }));
   game.holes = game.holeCells.map(c => ({ ...cc(c), r: game.cellSize * 0.3 }));
 
-  // 獨木橋:棧道折線(像素座標)與路寬
+  // 獨木橋:棧道折線(像素座標)與路寬(前期寬、後期窄)
   if (game.stage === 'path') {
     game.pathPoints = game.pathCells.map(c => cc(c));
-    game.pathWidth = Math.max(game.ball.r * 2.6, game.cellSize * 0.92);
+    const widthFactor = clamp(1.5 - game.diff * 0.05, 1.0, 1.5);
+    game.pathWidth = Math.max(game.ball.r * 3, game.cellSize * widthFactor);
   } else {
     game.pathPoints = null;
   }
@@ -908,10 +912,15 @@ function renderMazeLayer() {
   game.mazeLayer = layer;
 }
 
-/* ---------- 物理(參數依主題而異) ---------- */
+/* ---------- 物理(參數依主題而異;系列可覆寫,如獨木橋) ---------- */
+function activePhys() {
+  const s = seriesById(game.series);
+  return s.phys || theme().phys;
+}
+
 function physicsStep(dt) {
   const b = game.ball;
-  const ph = theme().phys;
+  const ph = activePhys();
   const tilt = getTilt();
   const vs = viewSize(); const scale = Math.min(vs.w, vs.h) / 720;
   // 鳳梨:靜摩擦死區 — 傾斜量不到門檻推不動,超過後扣除門檻再出力
@@ -968,9 +977,9 @@ function physicsStep(dt) {
     collideWalls();
   }
 
-  // 獨木橋:球心離棧道中線太遠 → 從邊緣摔落
+  // 獨木橋:球心越過棧道邊緣才摔落(允許半顆球懸空,較符合直覺)
   if (game.stage === 'path' && game.state === 'play' &&
-      distToPath(b.x, b.y) > game.pathWidth / 2 - b.r * 0.3) {
+      distToPath(b.x, b.y) > game.pathWidth / 2) {
     startFall({ x: b.x, y: b.y, r: b.r });
   }
 }
@@ -992,7 +1001,7 @@ function distToPath(px, py) {
 
 function collideWalls() {
   const b = game.ball;
-  const ph = theme().phys;
+  const ph = activePhys();
   let hitSpeed = 0, hitNx = 0, hitNy = -1;
   for (const r of game.walls) {
     const cx = clamp(b.x, r.x, r.x + r.w);
@@ -1060,8 +1069,10 @@ function checkPickups() {
       }
     }
   }
+  // 掉洞判定:彈珠台洞多,判定放寬一點(0.66)比較公平
+  const killF = game.stage === 'board' ? 0.66 : 0.75;
   for (const hole of game.holes) {
-    if (dist2(b.x, b.y, hole.x, hole.y) < (hole.r * 0.75) ** 2) {
+    if (dist2(b.x, b.y, hole.x, hole.y) < (hole.r * killF) ** 2) {
       startFall(hole);
       return;
     }
@@ -1656,12 +1667,6 @@ function loop(now) {
       resetBall();
       trail.length = 0;
       toast(game.stage === 'path' ? '從棧道上摔下去了!從起點重來' : theme().fallToast);
-      if (game.stage === 'board') {
-        // 老街規則:摔落後檢查點重來
-        game.starsGot = 0;
-        game.stars.forEach(s => { s.got = false; });
-        updateHUD();
-      }
       game.state = 'play';
     }
   }
