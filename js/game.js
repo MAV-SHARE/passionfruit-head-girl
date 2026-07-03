@@ -5,6 +5,9 @@
 (() => {
 'use strict';
 
+// 版本號(與 sw.js 的 CACHE 版本同步:v1.X.0 ↔ pfhg-vX)
+const APP_VERSION = '1.9.0';
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
@@ -2054,6 +2057,7 @@ applyThemeClass();
 layout0();
 initStarfield();
 updateBestLine();
+$('version-line').textContent = `百香果頭女孩 v${APP_VERSION}`;
 if (!('ontouchstart' in window)) {
   $('control-hint').textContent = '電腦:方向鍵 / WASD / 按住拖曳滑鼠';
 }

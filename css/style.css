@@ -578,6 +578,14 @@ body.theme-passion #clear-mascot { display: block; }
   padding: 8px 12px;
   font-size: 15px;
 }
+.version-line {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: var(--dim);
+  opacity: 0.75;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
 
 /* ---------- 水果主題共用外觀覆蓋 ---------- */
 body[class^="theme-"] .overlay {
