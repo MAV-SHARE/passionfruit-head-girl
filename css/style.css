@@ -26,6 +26,74 @@ body.theme-passion {
   --ovl-dark: rgba(20, 9, 3, 0.92);
 }
 
+/* 蓮霧主題(春) */
+body.theme-waxapple {
+  --bg: #120a0c;
+  --panel: rgba(52, 26, 32, 0.85);
+  --line: rgba(255, 170, 185, 0.25);
+  --cyan: #ff8fa2;
+  --magenta: #8cc455;
+  --gold: #ffd66e;
+  --text: #ffe8ec;
+  --dim: #c99aa4;
+  --accent1: #ff8fa2;
+  --accent2: #e26370;
+  --btn-grad: linear-gradient(90deg, #ff8fa2, #e26370);
+  --ovl: rgba(90, 35, 45, 0.5);
+  --ovl-dark: rgba(18, 8, 10, 0.92);
+}
+
+/* 西瓜主題(夏) */
+body.theme-watermelon {
+  --bg: #07130a;
+  --panel: rgba(18, 44, 24, 0.85);
+  --line: rgba(150, 230, 160, 0.22);
+  --cyan: #ff8080;
+  --magenta: #3f9c4a;
+  --gold: #ffd66e;
+  --text: #eaffee;
+  --dim: #9cc4a4;
+  --accent1: #ff8080;
+  --accent2: #3f9c4a;
+  --btn-grad: linear-gradient(90deg, #ff8080, #e05555);
+  --ovl: rgba(25, 70, 32, 0.5);
+  --ovl-dark: rgba(5, 14, 7, 0.92);
+}
+
+/* 柿子主題(秋) */
+body.theme-persimmon {
+  --bg: #170d04;
+  --panel: rgba(54, 33, 12, 0.85);
+  --line: rgba(255, 190, 110, 0.25);
+  --cyan: #ffab4d;
+  --magenta: #d8641f;
+  --gold: #ffd66e;
+  --text: #fff0dc;
+  --dim: #ccab88;
+  --accent1: #ffab4d;
+  --accent2: #e8722a;
+  --btn-grad: linear-gradient(90deg, #ffab4d, #e8722a);
+  --ovl: rgba(95, 55, 15, 0.5);
+  --ovl-dark: rgba(18, 10, 3, 0.92);
+}
+
+/* 草莓主題(冬) */
+body.theme-strawberry {
+  --bg: #150609;
+  --panel: rgba(56, 20, 28, 0.85);
+  --line: rgba(255, 150, 165, 0.25);
+  --cyan: #ff8095;
+  --magenta: #7c9a3e;
+  --gold: #ffd66e;
+  --text: #ffe6ea;
+  --dim: #cc939e;
+  --accent1: #ff8095;
+  --accent2: #d43b52;
+  --btn-grad: linear-gradient(90deg, #ff8095, #d43b52);
+  --ovl: rgba(95, 25, 40, 0.5);
+  --ovl-dark: rgba(16, 5, 8, 0.92);
+}
+
 /* 蘋果主題 */
 body.theme-apple {
   --bg: #0e1305;
@@ -450,6 +518,11 @@ body.theme-passion #clear-mascot { display: block; }
 }
 .series-card:active { transform: scale(0.98); }
 .series-card.done { border-color: rgba(255, 214, 110, 0.55); }
+.series-card.daily {
+  border-color: var(--gold);
+  background: rgba(255, 214, 110, 0.08);
+  box-shadow: 0 0 16px rgba(255, 214, 110, 0.15);
+}
 .s-icon { font-size: 28px; flex-shrink: 0; }
 .s-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .s-name { font-size: 15px; font-weight: 700; }

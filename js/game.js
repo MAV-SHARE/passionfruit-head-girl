@@ -6,7 +6,7 @@
 'use strict';
 
 // 版本號(與 sw.js 的 CACHE 版本同步:v1.X.0 ↔ pfhg-vX)
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.12.0';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -54,6 +54,8 @@ const THEMES = {
   // 預設:百香果 — 真實水果的滾動手感:幾乎不彈、阻力大、果形不正會搖晃、撞牆會擠壓
   passion: {
     icon: '✿',
+    fruit: '百香果',
+    season: '夏秋',
     h1: '百香果頭女孩',
     sub: 'PASSIONFRUIT HEAD GIRL',
     desc: '傾斜你的手機,讓百香果滾過果肉迷宮。<br>收集花朵、避開蟲蛀洞、滾進果汁漩渦。',
@@ -77,6 +79,8 @@ const THEMES = {
   // 蘋果 — 略帶彈性,但果形不對稱,滾動會偏出弧線、不走直線(curve)
   apple: {
     icon: '❀',
+    fruit: '蘋果',
+    season: '秋冬',
     h1: '百香果頭女孩',
     sub: '蘋果模式 APPLE',
     desc: '傾斜你的手機,讓蘋果滾過果園迷宮。<br>小心:蘋果滾起來會偏出弧線,不走直線!',
@@ -100,6 +104,8 @@ const THEMES = {
   // 鳳梨 — 最難滾:靜摩擦死區(deadzone,傾斜不夠推不動)、幾乎不彈、一路顛簸(jitter)
   pineapple: {
     icon: '✾',
+    fruit: '鳳梨',
+    season: '春夏',
     h1: '百香果頭女孩',
     sub: '鳳梨模式 PINEAPPLE',
     desc: '傾斜你的手機,推動不太會滾的鳳梨。<br>傾斜太小推不動,滾起來還會一路顛簸!',
@@ -118,6 +124,108 @@ const THEMES = {
       holeRim: '100, 65, 20', crumb: 'rgba(150, 100, 30, 0.7)',
       flower: { petal: 'rgba(240, 230, 255, 0.95)', fringe: '#a05ac8', center: '#ffde55' },
       spark: '#ffe08a', burst: '#ffd23e', vignette: 'rgba(14, 10, 0, 0.5)',
+    },
+  },
+  // 蓮霧(春)— 輕、脆、彈跳好,鐘形果會飄移
+  waxapple: {
+    icon: '❁',
+    fruit: '蓮霧',
+    season: '春',
+    h1: '百香果頭女孩',
+    sub: '蓮霧模式 WAX APPLE',
+    desc: '傾斜你的手機,讓輕飄飄的蓮霧滾過迷宮。<br>它超會彈,還會微微飄移!',
+    startToast: '蓮霧又輕又彈,小心彈過頭!',
+    fallToast: '掉進蟲蛀洞!從起點重來',
+    clearTitle: '恭喜過關!',
+    phys: { accel: 2600, friction: 1.6, restitution: 0.45, maxSpeed: 1200, wobble: 80, curve: 0.8, squash: true },
+    style: {
+      ball: 'waxapple', decor: 'none',
+      bg: ['#16210c', '#0a1105'], leaf: '150, 190, 90',
+      floor: ['#fbeef0', '#e6c4ca'], grid: 'rgba(180, 90, 100, 0.10)',
+      wall: ['#e26370', '#a12c3e', '#cf4759'],
+      wallShadow: 'rgba(70, 15, 25, 0.9)', sheen: 'rgba(255, 230, 235, 0.25)',
+      trail: '230, 130, 140',
+      goal: ['#ffe9ee', '#ff9fb0', '255, 110, 130'], swirl: '150, 40, 60',
+      holeRim: '120, 50, 60', crumb: 'rgba(160, 80, 90, 0.7)',
+      flower: { petal: 'rgba(255, 250, 252, 0.96)', fringe: '#d06a7a', center: '#ffd23e' },
+      spark: '#ffc2cb', burst: '#ff9fb0', vignette: 'rgba(12, 6, 2, 0.5)',
+    },
+  },
+  // 西瓜(夏)— 超重:起步慢、衝起來煞不住
+  watermelon: {
+    icon: '❂',
+    fruit: '西瓜',
+    season: '夏',
+    h1: '百香果頭女孩',
+    sub: '西瓜模式 WATERMELON',
+    desc: '傾斜你的手機,推動沉甸甸的大西瓜。<br>起步很慢,但衝起來就煞不住了!',
+    startToast: '西瓜超重!提早剎車,不然停不下來!',
+    fallToast: '掉進蟲蛀洞!從起點重來',
+    clearTitle: '恭喜過關!',
+    phys: { accel: 1500, friction: 0.8, restitution: 0.2, maxSpeed: 1250, wobble: 0, squash: false },
+    style: {
+      ball: 'watermelon', decor: 'seeds',
+      seed: { halo: 'rgba(255, 255, 255, 0.22)', body: '#1d1008', gloss: 'rgba(255, 255, 255, 0.5)' },
+      bg: ['#0d1f10', '#06110a'], leaf: '120, 180, 90',
+      floor: ['#ff6b6b', '#cf3540'], grid: 'rgba(120, 20, 25, 0.12)',
+      wall: ['#3f9c4a', '#1e6b2d', '#2f8a3d'],
+      wallShadow: 'rgba(8, 40, 15, 0.9)', sheen: 'rgba(220, 255, 220, 0.2)',
+      trail: '255, 120, 120',
+      goal: ['#ffd9d9', '#ff8080', '255, 80, 80'], swirl: '140, 20, 20',
+      holeRim: '90, 20, 20', crumb: 'rgba(130, 40, 40, 0.7)',
+      flower: { petal: 'rgba(255, 250, 240, 0.95)', fringe: '#3f9c4a', center: '#ffd23e' },
+      spark: '#ffb3b3', burst: '#ff8080', vignette: 'rgba(4, 12, 4, 0.5)',
+    },
+  },
+  // 柿子(秋)— 熟軟:黏答答超慢、幾乎不彈、撞牆大變形
+  persimmon: {
+    icon: '✽',
+    fruit: '柿子',
+    season: '秋',
+    h1: '百香果頭女孩',
+    sub: '柿子模式 PERSIMMON',
+    desc: '傾斜你的手機,滾動熟透的軟柿子。<br>黏答答的超難推,撞牆還會軟軟變形。',
+    startToast: '軟柿子黏答答,慢工出細活!',
+    fallToast: '掉進蟲蛀洞!從起點重來',
+    clearTitle: '恭喜過關!',
+    phys: { accel: 2100, friction: 3.6, restitution: 0.03, maxSpeed: 650, wobble: 0, squash: true },
+    style: {
+      ball: 'persimmon', decor: 'appleCore',
+      bg: ['#231409', '#110903'], leaf: '170, 140, 60',
+      floor: ['#ffb054', '#dd7f1e'], grid: 'rgba(150, 80, 10, 0.12)',
+      wall: ['#e8722a', '#a84a10', '#d8641f'],
+      wallShadow: 'rgba(60, 25, 5, 0.9)', sheen: 'rgba(255, 220, 180, 0.22)',
+      trail: '230, 140, 60',
+      goal: ['#fff0c8', '#ffc36b', '255, 150, 40'], swirl: '140, 70, 10',
+      holeRim: '110, 55, 15', crumb: 'rgba(150, 100, 40, 0.7)',
+      flower: { petal: 'rgba(255, 248, 235, 0.95)', fringe: '#c98a3a', center: '#ff9d2e' },
+      spark: '#ffcf9a', burst: '#ffb14d', vignette: 'rgba(14, 8, 0, 0.5)',
+    },
+  },
+  // 草莓(冬)— 圓錐果形:滾動大偏彎 + 搖晃
+  strawberry: {
+    icon: '✿',
+    fruit: '草莓',
+    season: '冬',
+    h1: '百香果頭女孩',
+    sub: '草莓模式 STRAWBERRY',
+    desc: '傾斜你的手機,滾動圓錐形的草莓。<br>它不是球!滾起來會大轉彎又搖晃。',
+    startToast: '草莓是圓錐形,會大轉彎,抓好方向!',
+    fallToast: '掉進蟲蛀洞!從起點重來',
+    clearTitle: '恭喜過關!',
+    phys: { accel: 2500, friction: 2.0, restitution: 0.3, maxSpeed: 1050, wobble: 100, curve: 1.9, squash: false },
+    style: {
+      ball: 'strawberry', decor: 'seeds',
+      seed: { halo: 'rgba(255, 255, 255, 0.18)', body: '#e8c53a', gloss: 'rgba(255, 255, 255, 0.7)' },
+      bg: ['#1c0f14', '#0d0609'], leaf: '140, 180, 80',
+      floor: ['#ff7a8a', '#d3435a'], grid: 'rgba(150, 30, 50, 0.12)',
+      wall: ['#d43b52', '#96202f', '#c02c44'],
+      wallShadow: 'rgba(60, 8, 18, 0.9)', sheen: 'rgba(255, 220, 225, 0.22)',
+      trail: '255, 150, 160',
+      goal: ['#ffe9ee', '#ff9fb0', '255, 110, 130'], swirl: '150, 30, 50',
+      holeRim: '110, 30, 40', crumb: 'rgba(150, 60, 70, 0.7)',
+      flower: { petal: 'rgba(255, 252, 250, 0.97)', fringe: '#7c9a3e', center: '#ffd23e' },
+      spark: '#ffc2cb', burst: '#ff9fb0', vignette: 'rgba(12, 4, 8, 0.5)',
     },
   },
   // 星雲能量球 — 低摩擦、高彈性
@@ -407,6 +515,7 @@ function bfsDistances(cells, sx, sy) {
 const game = {
   state: 'menu',        // menu | play | paused | clear | falling
   series: store.get('series', 'passion'),   // 目前系列
+  mode: 'series',       // series | daily(每日時令關卡)
   levelIndex: 1,        // 系列內第幾關(1..10)
   diff: 1,              // 內部難度
   stage: 'maze',        // maze | board | path
@@ -485,6 +594,14 @@ const SERIES = [
     phys: { accel: 2200, friction: 3.0, restitution: 0.1, maxSpeed: 700, wobble: 0, squash: false } },
   { id: 'pine', name: '鳳梨田', icon: '🍍', theme: 'pineapple', stage: 'maze',
     desc: '超難滾的鳳梨,顛簸前進', diff: 4 },
+  { id: 'waxapple', name: '蓮霧樹下', icon: '🔔', theme: 'waxapple', stage: 'maze',
+    desc: '春.蓮霧:超彈又會飄移', diff: 2 },
+  { id: 'watermelon', name: '西瓜田', icon: '🍉', theme: 'watermelon', stage: 'maze',
+    desc: '夏.西瓜:超重,衝起來煞不住', diff: 4 },
+  { id: 'persimmon', name: '柿子園', icon: '🟠', theme: 'persimmon', stage: 'maze',
+    desc: '秋.柿子:軟黏慢,撞牆大變形', diff: 3 },
+  { id: 'strawberry', name: '草莓園', icon: '🍓', theme: 'strawberry', stage: 'maze',
+    desc: '冬.草莓:圓錐形,滾動大轉彎', diff: 4 },
   { id: 'nebula', name: '星雲迷宮', icon: '🌌', theme: 'nebula', stage: 'maze',
     desc: '高速能量球,考驗反應', diff: 5 },
 ];
@@ -524,13 +641,8 @@ function gridSize(lv) {
   game.rows = portrait ? longCells : p.short;
 }
 
-function buildLevel(index) {
-  const s = seriesById(game.series);
-  game.levelIndex = index;
-  game.stage = s.stage;
-  // 系列內難度遞增:第 1 關 = 系列基礎難度,之後每關 +1
-  game.diff = s.diff + (index - 1);
-  const seed = (SERIES.indexOf(s) + 1) * 131071 + index * 7919;
+// 依 game.stage / game.diff 建置關卡(系列與每日關卡共用)
+function constructStage(seed) {
   gridSize(game.diff);
   if (game.stage === 'maze') buildMazeStage(game.diff, seed);
   else if (game.stage === 'board') buildBoardStage(game.diff, seed);
@@ -546,10 +658,73 @@ function buildLevel(index) {
   layout();
   resetBall();
   updateHUD();
+}
+
+function buildLevel(index) {
+  const s = seriesById(game.series);
+  game.mode = 'series';
+  game.levelIndex = index;
+  game.stage = s.stage;
+  // 系列內難度遞增:第 1 關 = 系列基礎難度,之後每關 +1
+  game.diff = s.diff + (index - 1);
+  constructStage((SERIES.indexOf(s) + 1) * 131071 + index * 7919);
   if (game.stage === 'board') toast('依序通過 ①②③ 再進終點!');
   else if (game.stage === 'path') toast('沿著棧道走,別掉下去!');
   else if (game.stage === 'rail') toast('沿軌道滾到終點杯!經過缺口要走穩!');
   else if (index === 1) toast(theme().startToast);
+}
+
+/* ---------- 每日時令關卡 ----------
+   依台灣水果產季,每天推廣一種當令水果;
+   關卡由日期種子決定(所有玩家同一關),型態每日輪替 */
+const MONTH_FRUITS = {
+  1: ['strawberry', 'apple'],       // 冬:草莓、蘋果
+  2: ['strawberry', 'waxapple'],
+  3: ['waxapple', 'pineapple'],     // 春:蓮霧、鳳梨
+  4: ['waxapple', 'pineapple'],
+  5: ['pineapple', 'watermelon'],
+  6: ['watermelon', 'passion'],     // 夏:西瓜、百香果
+  7: ['watermelon', 'passion'],
+  8: ['passion', 'watermelon'],
+  9: ['persimmon', 'passion'],      // 秋:柿子、百香果
+  10: ['persimmon', 'apple'],
+  11: ['persimmon', 'apple'],
+  12: ['strawberry', 'apple'],
+};
+
+function dailyInfo(d = new Date()) {
+  const y = d.getFullYear();
+  const doy = Math.floor((d - new Date(y, 0, 0)) / 86400000);
+  const month = d.getMonth() + 1;
+  const list = MONTH_FRUITS[month] || ['passion'];
+  const themeId = list[doy % list.length];
+  const stage = ['maze', 'board', 'path'][doy % 3];
+  const ymd = `${y}-${String(month).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { themeId, stage, seed: y * 1000 + doy, ymd, doy };
+}
+function dailyDoneStars(ymd) {
+  const v = store.get('dailyStars', {})[ymd];
+  return typeof v === 'number' ? v : -1;
+}
+
+function enterDailyLevel() {
+  const info = dailyInfo();
+  const th = THEMES[info.themeId] || THEMES.passion;
+  // 用該水果對應的迷宮系列當物理/顯示脈絡
+  const s = SERIES.find(x => x.theme === info.themeId && x.stage === 'maze') || SERIES[0];
+  game.series = s.id;
+  game.mode = 'daily';
+  settings.theme = info.themeId;
+  applyThemeClass();
+  hide('screen-series'); hide('screen-levels'); hide('screen-clear');
+  show('hud');
+  game.levelIndex = 1;
+  game.stage = info.stage;
+  game.diff = 5 + (info.doy % 3);
+  constructStage(info.seed);
+  game.state = 'play';
+  lastT = 0;
+  toast(`📅 今日時令:${th.fruit || ''}!${game.stage === 'board' ? '依序通過 ①②③!' : game.stage === 'path' ? '別掉下棧道!' : ''}`);
 }
 
 // 老街平衡彈珠台:整片坑洞、蜿蜒安全通道、依序闖關檢查點
@@ -862,8 +1037,9 @@ function renderMazeLayer() {
     fc.fillStyle = grad;
     fc.fillRect(fx, fy, fw, fh);
   }
-  if (!noFloor && style && style.decor === 'passionSeeds') {
-    // 百香果:散落的黑籽(帶果凍光澤)
+  if (!noFloor && style && (style.decor === 'passionSeeds' || style.decor === 'seeds')) {
+    // 果肉上散落的籽(顏色依水果:百香果黑籽/西瓜黑籽/草莓金籽)
+    const sc = style.seed || { halo: 'rgba(255, 220, 140, 0.5)', body: '#2e1608', gloss: 'rgba(255, 240, 200, 0.55)' };
     const nSeeds = Math.round(game.cols * game.rows * 0.7);
     for (let i = 0; i < nSeeds; i++) {
       const sx2 = fx + 4 + Math.random() * (fw - 8);
@@ -872,11 +1048,11 @@ function renderMazeLayer() {
       const rot = Math.random() * Math.PI;
       fc.save();
       fc.translate(sx2, sy2); fc.rotate(rot);
-      fc.fillStyle = 'rgba(255, 220, 140, 0.5)';
+      fc.fillStyle = sc.halo;
       fc.beginPath(); fc.ellipse(0, 0, sr * 1.9, sr * 1.5, 0, 0, Math.PI * 2); fc.fill();
-      fc.fillStyle = '#2e1608';
+      fc.fillStyle = sc.body;
       fc.beginPath(); fc.ellipse(0, 0, sr * 1.25, sr, 0, 0, Math.PI * 2); fc.fill();
-      fc.fillStyle = 'rgba(255, 240, 200, 0.55)';
+      fc.fillStyle = sc.gloss;
       fc.beginPath(); fc.arc(-sr * 0.35, -sr * 0.3, sr * 0.3, 0, Math.PI * 2); fc.fill();
       fc.restore();
     }
@@ -1353,8 +1529,14 @@ function levelClear() {
 
   // 星等:迷宮 = 收集數;彈珠台/獨木橋 = 依摔落次數(0 次滿星)
   const rating = game.stage === 'maze' ? game.starsGot : 3 - clamp(game.falls, 0, 2);
-  const firstClear = starsOf(game.series, game.levelIndex) < 0;
-  saveStars(game.series, game.levelIndex, rating);
+  if (game.mode === 'daily') {
+    const info = dailyInfo();
+    const ds = store.get('dailyStars', {});
+    ds[info.ymd] = Math.max(typeof ds[info.ymd] === 'number' ? ds[info.ymd] : -1, rating);
+    store.set('dailyStars', ds);
+  } else {
+    saveStars(game.series, game.levelIndex, rating);
+  }
 
   const timeBonus = Math.max(0, 120 - Math.floor(game.time)) * 5;
   const starBonus = rating * 200;
@@ -1368,9 +1550,10 @@ function levelClear() {
   checkAchievements();
 
   const s = seriesById(game.series);
-  const isLast = game.levelIndex >= SERIES_LEN;
+  const isLast = game.mode !== 'daily' && game.levelIndex >= SERIES_LEN;
   document.getElementById('clear-title').textContent =
-    isLast ? `🏆 ${s.name} 全破!` : theme().clearTitle;
+    game.mode === 'daily' ? `📅 今日${theme().fruit || ''}關卡完成!`
+    : isLast ? `🏆 ${s.name} 全破!` : theme().clearTitle;
   const starsEl = document.getElementById('clear-stars');
   starsEl.innerHTML = [0, 1, 2].map(i =>
     `<span class="${i < rating ? '' : 'off'}">${theme().icon}</span>`).join('');
@@ -1378,7 +1561,8 @@ function levelClear() {
   document.getElementById('clear-score').textContent = '+' + levelScore;
   document.getElementById('clear-total').textContent = game.totalScore;
   const btnNext = document.getElementById('btn-next');
-  btnNext.textContent = isLast ? '返回系列選單' : `下一關(${game.levelIndex + 1}/${SERIES_LEN})➜`;
+  btnNext.textContent = game.mode === 'daily' ? '返回選單'
+    : isLast ? '返回系列選單' : `下一關(${game.levelIndex + 1}/${SERIES_LEN})➜`;
   setTimeout(() => show('screen-clear'), 650);
 }
 
@@ -1693,9 +1877,16 @@ function drawBall(x, y, r) {
   if (game.stage === 'rail') { drawSteelBall(x, y, r); return; }
   const style = theme().style;
   if (style) {
-    if (style.ball === 'passion') drawPassionBall(x, y, r);
-    else if (style.ball === 'apple') drawAppleBall(x, y, r);
-    else drawPineappleBall(x, y, r);
+    const drawers = {
+      passion: drawPassionBall,
+      apple: drawAppleBall,
+      pineapple: drawPineappleBall,
+      waxapple: drawWaxappleBall,
+      watermelon: drawWatermelonBall,
+      persimmon: drawPersimmonBall,
+      strawberry: drawStrawberryBall,
+    };
+    (drawers[style.ball] || drawPassionBall)(x, y, r);
     return;
   }
   const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6);
@@ -1713,6 +1904,183 @@ function drawBall(x, y, r) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+}
+
+// 撞牆擠壓變形(沿撞擊法線;amount 控制軟硬)
+function applySquash(amount) {
+  if (game.squash && game.squash.t < 0.18) {
+    const k = amount * game.squash.s * Math.sin((game.squash.t / 0.18) * Math.PI);
+    const ang = Math.atan2(game.squash.ny, game.squash.nx);
+    ctx.rotate(ang);
+    ctx.scale(1 - k, 1 + k * 0.7);
+    ctx.rotate(-ang);
+  }
+}
+
+// 共用:水果落影
+function fruitShadow(r) {
+  ctx.fillStyle = 'rgba(22, 8, 0, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.12, r * 0.42, r * 0.95, r * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// 蓮霧:粉紅蠟質鐘形果(超亮蠟光 + 白色直紋)
+function drawWaxappleBall(x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  applySquash(0.25);
+  fruitShadow(r);
+  const body = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.12, 0, 0, r);
+  body.addColorStop(0, '#ffc7d0');
+  body.addColorStop(0.5, '#e26370');
+  body.addColorStop(1, '#a12c3e');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  // 蠟質直紋 + 蒂頭(隨滾動旋轉)
+  ctx.save();
+  ctx.rotate(game.ballRot);
+  ctx.strokeStyle = 'rgba(255, 235, 240, 0.3)';
+  ctx.lineWidth = Math.max(1, r * 0.1);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * r * 0.3, Math.sin(a) * r * 0.3, r * 0.55, a - 0.6, a + 0.6);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#7c9a3e';
+  ctx.beginPath(); ctx.arc(0, -r * 0.85, r * 0.13, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // 超亮蠟光
+  ctx.fillStyle = 'rgba(255, 250, 252, 0.65)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.35, -r * 0.42, r * 0.34, r * 0.18, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// 西瓜:綠皮深綠條紋(隨滾動旋轉)
+function drawWatermelonBall(x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  fruitShadow(r);
+  const body = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.12, 0, 0, r);
+  body.addColorStop(0, '#7ed184');
+  body.addColorStop(0.55, '#2f8a3d');
+  body.addColorStop(1, '#175c24');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  // 深綠波浪條紋
+  ctx.save();
+  ctx.rotate(game.ballRot);
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.98, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(16, 62, 24, 0.75)';
+  ctx.lineWidth = Math.max(2, r * 0.2);
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * r * 0.55 - r * 0.12, -r);
+    ctx.quadraticCurveTo(i * r * 0.55 + r * 0.18, 0, i * r * 0.55 - r * 0.12, r);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.fillStyle = 'rgba(240, 255, 240, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.35, -r * 0.42, r * 0.28, r * 0.15, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// 柿子:熟軟橙紅果(大變形 + 頂端綠色果萼)
+function drawPersimmonBall(x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  applySquash(0.5);   // 軟柿子:變形特別大
+  fruitShadow(r);
+  const body = ctx.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.12, 0, 0, r);
+  body.addColorStop(0, '#ffb054');
+  body.addColorStop(0.5, '#ed7d1e');
+  body.addColorStop(1, '#b0500e');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  // 果瓣淡紋 + 果萼(十字綠葉,隨滾動旋轉)
+  ctx.save();
+  ctx.rotate(game.ballRot);
+  ctx.strokeStyle = 'rgba(160, 80, 15, 0.3)';
+  ctx.lineWidth = Math.max(1, r * 0.07);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * r * 0.35, Math.sin(a) * r * 0.35, r * 0.5, a - 0.5, a + 0.5);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#5d8a34';
+  for (let i = 0; i < 4; i++) {
+    ctx.save();
+    ctx.rotate((i / 4) * Math.PI * 2);
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.78, r * 0.1, r * 0.24, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = '#4a6e28';
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.09, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // 熟軟果:柔霧光(不亮)
+  ctx.fillStyle = 'rgba(255, 230, 200, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.32, -r * 0.4, r * 0.3, r * 0.18, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// 草莓:紅果 + 金色籽點 + 綠色蒂葉冠(隨滾動旋轉)
+function drawStrawberryBall(x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  fruitShadow(r);
+  const body = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.12, 0, 0, r);
+  body.addColorStop(0, '#ff8f9e');
+  body.addColorStop(0.5, '#e0304a');
+  body.addColorStop(1, '#951227');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  // 金色籽點 + 蒂葉冠(隨滾動旋轉)
+  ctx.save();
+  ctx.rotate(game.ballRot);
+  ctx.fillStyle = 'rgba(255, 224, 130, 0.9)';
+  for (const sp of SPECKLES) {
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(sp.a) * sp.d * r, Math.sin(sp.a) * sp.d * r, sp.s * r * 0.7, sp.s * r * 1.05, sp.a, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#5d8a34';
+  for (let i = -2; i <= 2; i++) {
+    ctx.save();
+    ctx.rotate(i * 0.38);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.1, -r * 0.72);
+    ctx.lineTo(0, -r * 1.12);
+    ctx.lineTo(r * 0.1, -r * 0.72);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255, 240, 244, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.35, -r * 0.42, r * 0.28, r * 0.15, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 // 鋼珠(鉻銀金屬球)
@@ -2015,7 +2383,9 @@ function fmtTime(s) {
 
 function updateHUD() {
   const s = seriesById(game.series);
-  $('hud-level').textContent = `${s.icon} ${game.levelIndex}/${SERIES_LEN}`;
+  $('hud-level').textContent = game.mode === 'daily'
+    ? `📅 ${theme().fruit || '每日'}`
+    : `${s.icon} ${game.levelIndex}/${SERIES_LEN}`;
   $('hud-stars').textContent = game.stage === 'board' ? `◎ ${game.starsGot}/3`
     : game.stage === 'rail' ? `◉ ${game.starsGot}/3`
     : `${theme().icon} ${game.starsGot}/3`;
@@ -2093,6 +2463,12 @@ const ACHIEVEMENTS = [
   { icon: '👑', name: '全滿貫', desc: '所有系列全部通關', test: () => SERIES.every(s => clearedCount(s.id) >= SERIES_LEN) },
   // 新成就一律往後加(achSeen 以索引記錄,插中間會錯位)
   { icon: '🎢', name: '滾珠職人', desc: '滾珠珠機台 10 關全破', test: () => clearedCount('rail') >= SERIES_LEN },
+  { icon: '🔔', name: '蓮霧輕功', desc: '蓮霧樹下 10 關全破', test: () => clearedCount('waxapple') >= SERIES_LEN },
+  { icon: '🍉', name: '西瓜衝衝衝', desc: '西瓜田 10 關全破', test: () => clearedCount('watermelon') >= SERIES_LEN },
+  { icon: '🟠', name: '柿柿如意', desc: '柿子園 10 關全破', test: () => clearedCount('persimmon') >= SERIES_LEN },
+  { icon: '🍓', name: '草莓甜心', desc: '草莓園 10 關全破', test: () => clearedCount('strawberry') >= SERIES_LEN },
+  { icon: '📅', name: '每日報到', desc: '完成 1 次每日時令關卡', test: () => Object.keys(store.get('dailyStars', {})).length >= 1 },
+  { icon: '🗓️', name: '時令達人', desc: '完成 10 次每日時令關卡', test: () => Object.keys(store.get('dailyStars', {})).length >= 10 },
 ];
 function unlockedAchievements() { return ACHIEVEMENTS.filter(a => a.test()); }
 
@@ -2201,6 +2577,25 @@ function showSeries() {
   hide('hud'); hide('screen-clear'); hide('screen-levels');
   const list = $('series-list');
   list.innerHTML = '';
+  // 每日時令關卡卡片(置頂)
+  {
+    const info = dailyInfo();
+    const th = THEMES[info.themeId] || THEMES.passion;
+    const fs = SERIES.find(x => x.theme === info.themeId && x.stage === 'maze') || SERIES[0];
+    const ds = dailyDoneStars(info.ymd);
+    const stageName = { maze: '迷宮', board: '彈珠台', path: '獨木橋' }[info.stage];
+    const btn = document.createElement('button');
+    btn.className = 'series-card daily';
+    btn.innerHTML = `
+      <span class="s-icon">📅</span>
+      <span class="s-info">
+        <span class="s-name">每日時令關卡${ds >= 0 ? ' ✅' : ''}</span>
+        <span class="s-desc">今日推廣:${fs.icon} ${th.fruit}(${th.season}季水果.${stageName})</span>
+      </span>
+      <span class="s-prog">${ds >= 0 ? '★'.repeat(Math.max(1, ds)) : 'GO!'}</span>`;
+    btn.addEventListener('click', () => { sfx.click(); enterDailyLevel(); });
+    list.appendChild(btn);
+  }
   for (const s of SERIES) {
     const cleared = clearedCount(s.id);
     let starSum = 0;
@@ -2279,8 +2674,8 @@ $('btn-level-skip').addEventListener('click', () => closeLevelCalibration(true))
 $('btn-next').addEventListener('click', () => {
   sfx.click();
   hide('screen-clear');
-  if (game.levelIndex >= SERIES_LEN) {
-    showSeries();               // 系列全破 → 回系列選單
+  if (game.mode === 'daily' || game.levelIndex >= SERIES_LEN) {
+    showSeries();               // 每日關卡 / 系列全破 → 回選單
   } else {
     enterLevel(game.series, game.levelIndex + 1);
   }
@@ -2288,12 +2683,14 @@ $('btn-next').addEventListener('click', () => {
 $('btn-replay').addEventListener('click', () => {
   sfx.click();
   hide('screen-clear');
-  enterLevel(game.series, game.levelIndex);
+  if (game.mode === 'daily') enterDailyLevel();
+  else enterLevel(game.series, game.levelIndex);
 });
 $('btn-clear-menu').addEventListener('click', () => {
   sfx.click();
   hide('screen-clear');
-  showLevels(game.series);
+  if (game.mode === 'daily') showSeries();
+  else showLevels(game.series);
 });
 $('btn-back-series').addEventListener('click', () => {
   sfx.click();
@@ -2391,6 +2788,6 @@ if (!('ontouchstart' in window)) {
 requestAnimationFrame(loop);
 
 // 除錯掛鉤(開發工具檢視內部狀態用,不影響遊戲)
-window.__nebula = { game, input, getTilt, physicsStep, draw, buildLevel, checkPickups, openLevelCalibration, updateLevelGauge, closeLevelCalibration, SERIES, showSeries, showLevels, enterLevel, starsOf, distToPath };
+window.__nebula = { game, input, getTilt, physicsStep, draw, buildLevel, checkPickups, openLevelCalibration, updateLevelGauge, closeLevelCalibration, SERIES, showSeries, showLevels, enterLevel, starsOf, distToPath, dailyInfo, enterDailyLevel, THEMES };
 
 })();
