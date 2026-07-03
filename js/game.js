@@ -6,7 +6,7 @@
 'use strict';
 
 // 版本號(與 sw.js 的 CACHE 版本同步:v1.X.0 ↔ pfhg-vX)
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.10.1';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -1211,7 +1211,7 @@ function draw(now) {
     }
   }
 
-  if (!game.maze) return;
+  if (!game.floorLayer) return;   // 尚未建立任何關卡(彈珠台/獨木橋沒有 maze,不能用 maze 判斷)
 
   // 畫面震動
   let sx = 0, sy = 0;
